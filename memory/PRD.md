@@ -1,36 +1,33 @@
-# PRD - Site Edegar Agostinho (Financiamento Coletivo + Loja)
-
-## Problem Statement
-Site profissional para o comediante Edegar Agostinho. Financiamento coletivo + loja online. Apenas admin pode postar.
-
-## User Personas
-- **Admin (mateusbpugli@gmail.com)**: Cria campanhas e produtos, gerencia conteudo
-- **Comprador/Apoiador**: Cadastra com email+senha+telefone, compra produtos e apoia campanhas
+# PRD - Site Edegar Agostinho
 
 ## Architecture
-- Frontend: React + Tailwind CSS (neo-brutalist)
+- Frontend: React + Tailwind (neo-brutalist)
 - Backend: FastAPI + MongoDB
-- Auth: JWT (admin + users)
-- Payments: Stripe via emergentintegrations
+- Auth: JWT (admin + users with phone)
+- Payments: Stripe (card)
+- Email: Resend (log mode until key added)
 
-## Implemented (14 Apr 2026)
-### Iteration 1
-- Full crowdfunding with campaigns CRUD (max 10), tiers, progress bar
+## Implemented
+
+### Iteration 1 (14 Apr 2026)
+- Crowdfunding with campaigns CRUD (max 10), tiers, progress bar
 - Admin dashboard, gallery, biography, newsletter
-- Neo-brutalist design (Outfit + DM Sans, #FFDE00)
 - Stripe checkout + 5% fee
 
 ### Iteration 2
-- Admin credentials: mateusbpugli@gmail.com / Mateus Buarque 1101
+- Admin: mateusbpugli@gmail.com / Mateus Buarque 1101
 - User registration with email + password + phone
-- Products/store section (max 10 active products)
+- Products/store section (max 10)
 - Login required for buying/supporting
-- Store page at /loja
-- Support email in footer: mateusbuarquepugli@gmail.com
+
+### Iteration 3
+- Purchase history at /meus-pedidos
+- Admin full site customization (name, logo, colors, hero text, marquee, support email)
+- Email notifications (LOG mode - add RESEND_API_KEY to .env for real emails)
+- Dynamic site settings applied across all pages
 
 ## Backlog
-- [ ] Pix QR code via Stripe
-- [ ] Email notifications for buyers
+- [ ] Add RESEND_API_KEY for real email notifications
 - [ ] Social sharing buttons
-- [ ] Order history for users
 - [ ] Campaign updates/comments
+- [ ] PDF receipts
