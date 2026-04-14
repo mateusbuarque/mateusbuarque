@@ -577,8 +577,8 @@ async def stripe_webhook(request: Request):
 # ─── Admin Stats ───
 @api_router.get("/admin/stats")
 async def get_admin_stats(user=Depends(require_admin)):
-    campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(100)
-    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    campaigns = await db.campaigns.find({}, {"_id": 0, "id": 1, "raised_amount": 1, "backers_count": 1, "is_active": 1}).to_list(100)
+    products = await db.products.find({}, {"_id": 0, "is_active": 1}).to_list(100)
     transactions = await db.payment_transactions.find({}, {"_id": 0}).to_list(1000)
     email_logs = await db.email_logs.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
     
