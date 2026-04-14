@@ -392,9 +392,11 @@ async def get_user_orders(user=Depends(get_current_user)):
         {"user_id": user["_id"]}, {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     
-    # Batch fetch all campaigns and products to avoid N+1
-    campaigns_map = {c["id"]: c for c in await db.campaigns.find({}, {"_id": 0, "id": 1, "title": 1, "cover_image": 1}).to_list(None)}
-    products_map = {p["id"]: p for p in await db.products.find({}, {"_id": 0, "id": 1, "title": 1, "image_url": 1}).to_list(None)}
+    # Batch fetch only referenced campaigns and products
+    campaign_ids = list(set(tx.get("campaign_id") for tx in transactions if tx.get("campaign_id")))
+    product_ids = list(set(tx.get("product_id") for tx in transactions if tx.get("product_id")))
+    campaigns_map = {c["id"]: c for c in await db.campaigns.find({"id": {"$in": campaign_ids}}, {"_id": 0, "id": 1, "title": 1, "cover_image": 1}).to_list(100)} if campaign_ids else {}
+    products_map = {p["id"]: p for p in await db.products.find({"id": {"$in": product_ids}}, {"_id": 0, "id": 1, "title": 1, "image_url": 1}).to_list(100)} if product_ids else {}
     
     for tx in transactions:
         if tx.get("type") == "campaign" and tx.get("campaign_id"):
