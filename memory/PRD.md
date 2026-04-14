@@ -1,50 +1,36 @@
-# PRD - Site Edegar Agostinho (Financiamento Coletivo)
+# PRD - Site Edegar Agostinho (Financiamento Coletivo + Loja)
 
 ## Problem Statement
-Site profissional para o comediante Edegar Agostinho vender seus livros via financiamento coletivo. Apenas admin pode postar. Inspirado em fabricadohumor.com.br.
+Site profissional para o comediante Edegar Agostinho. Financiamento coletivo + loja online. Apenas admin pode postar.
 
 ## User Personas
-- **Admin (Edegar)**: Cria campanhas, gerencia conteúdo, acompanha arrecadação
-- **Visitante/Apoiador**: Navega campanhas, apoia com Pix/cartão, recebe livros
-
-## Core Requirements
-- Até 10 campanhas simultâneas ativas
-- Admin define valor, data e recompensas por campanha
-- TODAS campanhas entregam produto ao comprador mesmo se R$0 arrecadado
-- Plataforma cobra 5% do valor final
-- Pagamento via Stripe (cartão + Pix)
-- Biografia, galeria, newsletter
+- **Admin (mateusbpugli@gmail.com)**: Cria campanhas e produtos, gerencia conteudo
+- **Comprador/Apoiador**: Cadastra com email+senha+telefone, compra produtos e apoia campanhas
 
 ## Architecture
-- **Frontend**: React + Tailwind CSS + Shadcn UI (neo-brutalist design)
-- **Backend**: FastAPI + MongoDB
-- **Auth**: JWT admin-only
-- **Payments**: Stripe via emergentintegrations
+- Frontend: React + Tailwind CSS (neo-brutalist)
+- Backend: FastAPI + MongoDB
+- Auth: JWT (admin + users)
+- Payments: Stripe via emergentintegrations
 
-## What's Implemented (14 Apr 2026)
-- Full backend with campaigns CRUD, auth, payments, newsletter, gallery, bio
-- Full frontend with Home, Campaign Detail, Admin Login, Admin Dashboard, Payment flow
-- Neo-brutalist design (Outfit + DM Sans fonts, #FFDE00 primary)
-- Stripe checkout integration with 5% fee calculation
-- Marquee strip, responsive design
-- Admin dashboard with stats, campaign management, gallery, bio, newsletter tabs
-- 3 book covers integrated (Zumbi, Pohi, Histórias)
+## Implemented (14 Apr 2026)
+### Iteration 1
+- Full crowdfunding with campaigns CRUD (max 10), tiers, progress bar
+- Admin dashboard, gallery, biography, newsletter
+- Neo-brutalist design (Outfit + DM Sans, #FFDE00)
+- Stripe checkout + 5% fee
 
-## P0 - Done
-- [x] Admin auth
-- [x] Campaign CRUD (max 10)
-- [x] Stripe payment flow
-- [x] 5% fee logic
-- [x] Homepage with hero, campaigns, bio, gallery, newsletter
-- [x] Campaign detail with tiers
+### Iteration 2
+- Admin credentials: mateusbpugli@gmail.com / Mateus Buarque 1101
+- User registration with email + password + phone
+- Products/store section (max 10 active products)
+- Login required for buying/supporting
+- Store page at /loja
+- Support email in footer: mateusbuarquepugli@gmail.com
 
-## P1 - Backlog
-- [ ] Pix QR code generation (currently card-only via Stripe)
-- [ ] Email notifications for backers
+## Backlog
+- [ ] Pix QR code via Stripe
+- [ ] Email notifications for buyers
 - [ ] Social sharing buttons
+- [ ] Order history for users
 - [ ] Campaign updates/comments
-
-## P2 - Nice to Have
-- [ ] PDF receipts
-- [ ] Backer dashboard
-- [ ] Campaign analytics charts
