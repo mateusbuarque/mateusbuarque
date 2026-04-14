@@ -392,14 +392,17 @@ async def get_user_orders(user=Depends(get_current_user)):
         {"user_id": user["_id"]}, {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     
-    # Enrich with item titles
+    # Batch fetch all campaigns and products to avoid N+1
+    campaigns_map = {c["id"]: c for c in await db.campaigns.find({}, {"_id": 0, "id": 1, "title": 1, "cover_image": 1}).to_list(None)}
+    products_map = {p["id"]: p for p in await db.products.find({}, {"_id": 0, "id": 1, "title": 1, "image_url": 1}).to_list(None)}
+    
     for tx in transactions:
         if tx.get("type") == "campaign" and tx.get("campaign_id"):
-            camp = await db.campaigns.find_one({"id": tx["campaign_id"]}, {"_id": 0, "title": 1, "cover_image": 1})
+            camp = campaigns_map.get(tx["campaign_id"])
             tx["item_title"] = camp["title"] if camp else "Campanha"
             tx["item_image"] = camp.get("cover_image", "") if camp else ""
         elif tx.get("type") == "product" and tx.get("product_id"):
-            prod = await db.products.find_one({"id": tx["product_id"]}, {"_id": 0, "title": 1, "image_url": 1})
+            prod = products_map.get(tx["product_id"])
             tx["item_title"] = prod["title"] if prod else "Produto"
             tx["item_image"] = prod.get("image_url", "") if prod else ""
         else:
@@ -645,7 +648,7 @@ async def update_bio(data: BioUpdate, user=Depends(require_admin)):
 # ─── Seed & Startup ───
 async def seed_admin():
     admin_email = os.environ.get("ADMIN_EMAIL", "mateusbpugli@gmail.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "Mateus Buarque 1101")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "MateusBuarque1101")
     existing = await db.users.find_one({"email": admin_email})
     if existing is None:
         await db.users.insert_one({
