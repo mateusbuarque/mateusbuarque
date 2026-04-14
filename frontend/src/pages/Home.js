@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import CampaignCard from "../components/CampaignCard";
 import Marquee from "../components/Marquee";
+import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import { campaignAPI, bioAPI, galleryAPI, newsletterAPI } from "../lib/api";
 import { ArrowRight, BookOpen, Users, Target } from "lucide-react";
 
 export default function Home() {
+  const { settings } = useSiteSettings();
   const [campaigns, setCampaigns] = useState([]);
   const [bio, setBio] = useState({ content: "", photo_url: "" });
   const [gallery, setGallery] = useState([]);
@@ -56,16 +58,17 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="grid grid-cols-12 gap-8 items-center">
             <div className="col-span-12 md:col-span-7">
-              <h1 className="font-['Outfit'] text-5xl md:text-7xl font-black uppercase tracking-tighter leading-none text-zinc-950 mb-6">
-                Apoie a<br />
-                <span className="text-[#FFDE00]" style={{ WebkitTextStroke: "2px #09090B" }}>
-                  Comedia.
-                </span>
-                <br />
-                Leia um livro.
+              <h1 className="font-['Outfit'] text-5xl md:text-7xl font-black uppercase tracking-tighter leading-none mb-6" style={{ color: settings.text_color }}>
+                {(settings.hero_title || "Apoie a Comedia. Leia um livro.").split(".").map((part, i, arr) => (
+                  <span key={i}>
+                    {i === 0 ? part : <><span style={{ color: settings.primary_color, WebkitTextStroke: `2px ${settings.secondary_color}` }}>{part}</span></>}
+                    {i < arr.length - 1 ? "." : ""}
+                    {i === 0 && <br />}
+                  </span>
+                ))}
               </h1>
               <p className="text-base md:text-lg text-zinc-600 leading-relaxed mb-8 max-w-lg">
-                Financiamento coletivo dos livros de Edegar Agostinho. Apoie a comedia brasileira e receba seu livro em casa.
+                {settings.hero_subtitle}
               </p>
               <div className="flex flex-wrap gap-4">
                 <a href="#campanhas" className="brutalist-btn flex items-center gap-2" data-testid="hero-support-btn">

@@ -57,4 +57,13 @@ export const adminAPI = {
   stats: () => api.get("/admin/stats"),
 };
 
+export const siteSettingsAPI = {
+  get: () => api.get("/site-settings"),
+  update: (data) => api.put("/site-settings", data),
+};
+
+export const userAPI = {
+  orders: () => api.get("/user/orders"),
+};
+
 export default api;

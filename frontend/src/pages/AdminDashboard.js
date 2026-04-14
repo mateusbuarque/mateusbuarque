@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag } from "lucide-react";
+import { useSiteSettings } from "../contexts/SiteSettingsContext";
+import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI } from "../lib/api";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings } from "lucide-react";
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
+  const { settings: currentSettings, refresh: refreshSettings } = useSiteSettings();
   const navigate = useNavigate();
   const [tab, setTab] = useState("campaigns");
   const [campaigns, setCampaigns] = useState([]);
@@ -14,6 +16,7 @@ export default function AdminDashboard() {
   const [gallery, setGallery] = useState([]);
   const [bio, setBio] = useState({ content: "", photo_url: "" });
   const [subscribers, setSubscribers] = useState([]);
+  const [siteConfig, setSiteConfig] = useState({});
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
@@ -31,9 +34,10 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [campRes, prodRes, statsRes, galRes, bioRes, subRes] = await Promise.all([
+      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes] = await Promise.all([
         campaignAPI.getAll(), productAPI.getAll(), adminAPI.stats(),
         galleryAPI.getAll(), bioAPI.get(), newsletterAPI.getSubscribers(),
+        siteSettingsAPI.get(),
       ]);
       setCampaigns(campRes.data);
       setProducts(prodRes.data);
@@ -41,6 +45,7 @@ export default function AdminDashboard() {
       setGallery(galRes.data);
       setBio(bioRes.data);
       setSubscribers(subRes.data);
+      setSiteConfig(settRes.data);
     } catch (err) { console.error(err); }
   };
 
@@ -75,6 +80,7 @@ export default function AdminDashboard() {
     { id: "gallery", label: "Galeria", icon: <Image size={16} /> },
     { id: "bio", label: "Biografia", icon: <FileText size={16} /> },
     { id: "subscribers", label: "Newsletter", icon: <Mail size={16} /> },
+    { id: "settings", label: "Config. Site", icon: <Settings size={16} /> },
   ];
 
   return (
@@ -280,6 +286,11 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
+        )}
+
+        {/* Settings Tab */}
+        {tab === "settings" && (
+          <SiteSettingsTab config={siteConfig} onSave={() => { loadData(); refreshSettings(); }} />
         )}
       </div>
 
@@ -492,6 +503,120 @@ function ProductModal({ product, onClose, onSave }) {
           </button>
         </form>
       </div>
+    </div>
+  );
+}
+
+
+function SiteSettingsTab({ config, onSave }) {
+  const [form, setForm] = useState({
+    site_name: config?.site_name || "Edegar Agostinho",
+    site_subtitle: config?.site_subtitle || "",
+    logo_url: config?.logo_url || "",
+    primary_color: config?.primary_color || "#FFDE00",
+    secondary_color: config?.secondary_color || "#09090B",
+    accent_color: config?.accent_color || "#FF3B30",
+    bg_color: config?.bg_color || "#FFFFFF",
+    text_color: config?.text_color || "#09090B",
+    hero_title: config?.hero_title || "",
+    hero_subtitle: config?.hero_subtitle || "",
+    support_email: config?.support_email || "mateusbuarquepugli@gmail.com",
+    marquee_text: config?.marquee_text || "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (config) setForm((prev) => ({ ...prev, ...config }));
+  }, [config]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await siteSettingsAPI.update(form);
+      alert("Configuracoes salvas!");
+      onSave();
+    } catch (err) { alert("Erro ao salvar"); }
+    finally { setSaving(false); }
+  };
+
+  const colorFields = [
+    { key: "primary_color", label: "Cor Primaria (botoes, destaques)" },
+    { key: "secondary_color", label: "Cor Secundaria (fundo escuro, textos)" },
+    { key: "accent_color", label: "Cor Acentuada" },
+    { key: "bg_color", label: "Cor de Fundo" },
+    { key: "text_color", label: "Cor do Texto" },
+  ];
+
+  return (
+    <div className="space-y-6" data-testid="settings-tab">
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Identidade do Site</h3>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Nome do Site</label>
+              <input type="text" value={form.site_name} onChange={(e) => setForm({ ...form, site_name: e.target.value })} className="brutalist-input" data-testid="settings-site-name" />
+            </div>
+            <div>
+              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Subtitulo</label>
+              <input type="text" value={form.site_subtitle} onChange={(e) => setForm({ ...form, site_subtitle: e.target.value })} className="brutalist-input" data-testid="settings-site-subtitle" />
+            </div>
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">URL do Logo (deixe vazio para texto)</label>
+            <input type="text" value={form.logo_url} onChange={(e) => setForm({ ...form, logo_url: e.target.value })} className="brutalist-input" placeholder="https://..." data-testid="settings-logo-url" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Email de Suporte</label>
+            <input type="email" value={form.support_email} onChange={(e) => setForm({ ...form, support_email: e.target.value })} className="brutalist-input" data-testid="settings-support-email" />
+          </div>
+        </div>
+      </div>
+
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Cores</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {colorFields.map(({ key, label }) => (
+            <div key={key}>
+              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">{label}</label>
+              <div className="flex gap-2 items-center">
+                <input type="color" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-10 h-10 border-2 border-zinc-950 cursor-pointer p-0" />
+                <input type="text" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="brutalist-input flex-1 text-sm" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 p-4 border-2 border-zinc-300 flex gap-3 items-center">
+          <span className="text-xs font-bold uppercase text-zinc-500">Preview:</span>
+          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.primary_color }} title="Primaria" />
+          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.secondary_color }} title="Secundaria" />
+          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.accent_color }} title="Acentuada" />
+          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.bg_color }} title="Fundo" />
+          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.text_color }} title="Texto" />
+        </div>
+      </div>
+
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Textos do Site</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Titulo do Hero (separar frases com ponto)</label>
+            <input type="text" value={form.hero_title} onChange={(e) => setForm({ ...form, hero_title: e.target.value })} className="brutalist-input" data-testid="settings-hero-title" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Subtitulo do Hero</label>
+            <textarea value={form.hero_subtitle} onChange={(e) => setForm({ ...form, hero_subtitle: e.target.value })} className="brutalist-input min-h-[80px]" data-testid="settings-hero-subtitle" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Texto do Marquee (separar com *)</label>
+            <input type="text" value={form.marquee_text} onChange={(e) => setForm({ ...form, marquee_text: e.target.value })} className="brutalist-input" data-testid="settings-marquee-text" />
+          </div>
+        </div>
+      </div>
+
+      <button onClick={handleSave} disabled={saving} className="brutalist-btn w-full sm:w-auto" data-testid="settings-save-btn">
+        {saving ? "Salvando..." : "Salvar Configuracoes"}
+      </button>
     </div>
   );
 }

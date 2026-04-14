@@ -1,36 +1,19 @@
 import MarqueeLib from "react-fast-marquee";
+import { useSiteSettings } from "../contexts/SiteSettingsContext";
 
 export default function Marquee() {
+  const { settings } = useSiteSettings();
+  const parts = (settings.marquee_text || "").split("*").filter(Boolean).map(s => s.trim());
+
   return (
-    <div
-      className="bg-zinc-950 text-[#FFDE00] py-4 border-y-2 border-zinc-950 overflow-hidden"
-      data-testid="marquee-strip"
-    >
+    <div className="py-4 border-y-2 overflow-hidden" style={{ backgroundColor: settings.secondary_color, borderColor: settings.secondary_color, color: settings.primary_color }} data-testid="marquee-strip">
       <MarqueeLib speed={50} gradient={false}>
-        <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-8">
-          FINANCIAMENTO COLETIVO
-        </span>
-        <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-8">
-          &bull;
-        </span>
-        <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-8">
-          PRODUTO ENTREGUE MESMO SE FATURAR R$0
-        </span>
-        <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-8">
-          &bull;
-        </span>
-        <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-8">
-          APOIE A COMEDIA
-        </span>
-        <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-8">
-          &bull;
-        </span>
-        <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-8">
-          EDEGAR AGOSTINHO
-        </span>
-        <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-8">
-          &bull;
-        </span>
+        {parts.map((text, i) => (
+          <span key={i}>
+            <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-8">{text}</span>
+            <span className="font-['Outfit'] font-black text-lg sm:text-2xl uppercase tracking-wider mx-4">&bull;</span>
+          </span>
+        ))}
       </MarqueeLib>
     </div>
   );

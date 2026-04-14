@@ -14,6 +14,7 @@ import bcrypt
 import jwt
 import uuid
 import re
+import asyncio
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -22,6 +23,13 @@ from bson import ObjectId
 from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout, CheckoutSessionRequest
 )
+
+try:
+    import resend
+    resend.api_key = os.environ.get("RESEND_API_KEY", "")
+    HAS_RESEND = bool(resend.api_key)
+except ImportError:
+    HAS_RESEND = False
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -37,6 +45,49 @@ MAX_PRODUCTS = 10
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# ─── Email Helper ───
+async def send_notification_email(to_email: str, subject: str, html_content: str):
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    if HAS_RESEND:
+        try:
+            params = {"from": sender, "to": [to_email], "subject": subject, "html": html_content}
+            result = await asyncio.to_thread(resend.Emails.send, params)
+            logger.info(f"Email sent to {to_email}: {result}")
+            return True
+        except Exception as e:
+            logger.error(f"Email send failed: {e}")
+            return False
+    else:
+        logger.info(f"[EMAIL LOG] To: {to_email} | Subject: {subject}")
+        logger.info(f"[EMAIL LOG] Content: {html_content[:200]}...")
+        # Save to db for admin to see
+        await db.email_logs.insert_one({
+            "id": str(uuid.uuid4()), "to": to_email, "subject": subject,
+            "html": html_content, "status": "logged_no_key",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        return False
+
+def build_purchase_email(user_name: str, item_title: str, amount: float, tx_type: str):
+    return f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border:3px solid #09090B;">
+      <div style="background:#FFDE00;padding:20px 30px;border-bottom:3px solid #09090B;">
+        <h1 style="margin:0;font-size:24px;color:#09090B;text-transform:uppercase;">Edegar Agostinho</h1>
+      </div>
+      <div style="padding:30px;">
+        <h2 style="color:#09090B;margin-top:0;">{'Apoio confirmado!' if tx_type == 'campaign' else 'Compra confirmada!'}</h2>
+        <p style="color:#333;font-size:16px;">Ola <strong>{user_name}</strong>,</p>
+        <p style="color:#333;font-size:16px;">{'Seu apoio a campanha' if tx_type == 'campaign' else 'Sua compra de'} <strong>{item_title}</strong> foi confirmado com sucesso!</p>
+        <div style="background:#F4F4F5;border:2px solid #09090B;padding:15px;margin:20px 0;">
+          <p style="margin:5px 0;font-size:14px;"><strong>Valor:</strong> R$ {amount:.2f}</p>
+          <p style="margin:5px 0;font-size:14px;"><strong>Data:</strong> {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M')}</p>
+        </div>
+        <p style="color:#333;font-size:14px;">O produto sera entregue conforme os detalhes da {'recompensa' if tx_type == 'campaign' else 'compra'}.</p>
+        <p style="color:#666;font-size:12px;margin-top:30px;">Suporte: mateusbuarquepugli@gmail.com</p>
+      </div>
+    </div>
+    """
 
 # ─── Password Hashing ───
 def hash_password(password: str) -> str:
@@ -72,7 +123,7 @@ async def get_current_user(request: Request) -> dict:
         user.pop("password_hash", None)
         return user
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Sessao expirada. Faca login novamente.")
+        raise HTTPException(status_code=401, detail="Sessao expirada")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token invalido")
 
@@ -154,6 +205,35 @@ class CheckoutProductRequest(BaseModel):
     quantity: int = 1
     origin_url: str
 
+class SiteSettingsUpdate(BaseModel):
+    site_name: Optional[str] = None
+    site_subtitle: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: Optional[str] = None
+    secondary_color: Optional[str] = None
+    accent_color: Optional[str] = None
+    bg_color: Optional[str] = None
+    text_color: Optional[str] = None
+    hero_title: Optional[str] = None
+    hero_subtitle: Optional[str] = None
+    support_email: Optional[str] = None
+    marquee_text: Optional[str] = None
+
+DEFAULT_SITE_SETTINGS = {
+    "site_name": "Edegar Agostinho",
+    "site_subtitle": "Comediante, escritor e ilustrador",
+    "logo_url": "",
+    "primary_color": "#FFDE00",
+    "secondary_color": "#09090B",
+    "accent_color": "#FF3B30",
+    "bg_color": "#FFFFFF",
+    "text_color": "#09090B",
+    "hero_title": "Apoie a Comedia. Leia um livro.",
+    "hero_subtitle": "Financiamento coletivo dos livros de Edegar Agostinho. Apoie a comedia brasileira e receba seu livro em casa.",
+    "support_email": "mateusbuarquepugli@gmail.com",
+    "marquee_text": "FINANCIAMENTO COLETIVO * PRODUTO ENTREGUE MESMO SE FATURAR R$0 * APOIE A COMEDIA * EDEGAR AGOSTINHO *"
+}
+
 # ─── Auth Routes ───
 @api_router.post("/auth/register")
 async def register(req: RegisterRequest):
@@ -163,31 +243,15 @@ async def register(req: RegisterRequest):
         raise HTTPException(status_code=400, detail="Senha deve ter pelo menos 6 caracteres")
     if not phone or len(phone) < 8:
         raise HTTPException(status_code=400, detail="Numero de celular invalido")
-    
     existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(status_code=400, detail="Email ja cadastrado")
-
     hashed = hash_password(req.password)
-    user_doc = {
-        "email": email,
-        "password_hash": hashed,
-        "name": req.name.strip(),
-        "phone": phone,
-        "role": "user",
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
+    user_doc = {"email": email, "password_hash": hashed, "name": req.name.strip(), "phone": phone, "role": "user", "created_at": datetime.now(timezone.utc).isoformat()}
     result = await db.users.insert_one(user_doc)
     user_id = str(result.inserted_id)
     token = create_access_token(user_id, email, "user")
-    
-    response = JSONResponse(content={
-        "id": user_id,
-        "email": email,
-        "name": req.name.strip(),
-        "phone": phone,
-        "role": "user"
-    })
+    response = JSONResponse(content={"id": user_id, "email": email, "name": req.name.strip(), "phone": phone, "role": "user"})
     response.set_cookie(key="access_token", value=token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
     return response
 
@@ -198,13 +262,7 @@ async def login(req: LoginRequest):
     if not user or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Email ou senha incorretos")
     token = create_access_token(str(user["_id"]), email, user.get("role", "user"))
-    response = JSONResponse(content={
-        "id": str(user["_id"]),
-        "email": user["email"],
-        "name": user.get("name", ""),
-        "phone": user.get("phone", ""),
-        "role": user.get("role", "user")
-    })
+    response = JSONResponse(content={"id": str(user["_id"]), "email": user["email"], "name": user.get("name", ""), "phone": user.get("phone", ""), "role": user.get("role", "user")})
     response.set_cookie(key="access_token", value=token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
     return response
 
@@ -218,11 +276,31 @@ async def logout():
 async def get_me(user=Depends(get_current_user)):
     return user
 
+# ─── Site Settings (Admin Customization) ───
+@api_router.get("/site-settings")
+async def get_site_settings():
+    settings = await db.site_settings.find_one({"key": "site_config"}, {"_id": 0})
+    if not settings:
+        return DEFAULT_SITE_SETTINGS
+    result = {**DEFAULT_SITE_SETTINGS}
+    for k, v in settings.items():
+        if k != "key" and v:
+            result[k] = v
+    return result
+
+@api_router.put("/site-settings")
+async def update_site_settings(data: SiteSettingsUpdate, user=Depends(require_admin)):
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    update_data["key"] = "site_config"
+    await db.site_settings.update_one(
+        {"key": "site_config"}, {"$set": update_data}, upsert=True
+    )
+    return {"message": "Configuracoes atualizadas"}
+
 # ─── Campaign Routes ───
 @api_router.get("/campaigns")
 async def get_campaigns():
-    campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(100)
-    return campaigns
+    return await db.campaigns.find({}, {"_id": 0}).to_list(100)
 
 @api_router.get("/campaigns/{campaign_id}")
 async def get_campaign(campaign_id: str):
@@ -235,22 +313,14 @@ async def get_campaign(campaign_id: str):
 async def create_campaign(data: CampaignCreate, user=Depends(require_admin)):
     active_count = await db.campaigns.count_documents({"is_active": True})
     if active_count >= MAX_CAMPAIGNS:
-        raise HTTPException(status_code=400, detail=f"Maximo de {MAX_CAMPAIGNS} campanhas ativas atingido")
+        raise HTTPException(status_code=400, detail=f"Maximo de {MAX_CAMPAIGNS} campanhas ativas")
     campaign = {
-        "id": str(uuid.uuid4()),
-        "title": data.title,
-        "description": data.description,
-        "cover_image": data.cover_image,
-        "goal_amount": data.goal_amount,
-        "raised_amount": 0.0,
-        "backers_count": 0,
-        "end_date": data.end_date,
-        "tiers": [t.model_dump() for t in data.tiers],
-        "is_active": True,
-        "must_deliver": True,
-        "platform_fee_percent": PLATFORM_FEE_PERCENT,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "created_by": user["email"]
+        "id": str(uuid.uuid4()), "title": data.title, "description": data.description,
+        "cover_image": data.cover_image, "goal_amount": data.goal_amount,
+        "raised_amount": 0.0, "backers_count": 0, "end_date": data.end_date,
+        "tiers": [t.model_dump() for t in data.tiers], "is_active": True,
+        "must_deliver": True, "platform_fee_percent": PLATFORM_FEE_PERCENT,
+        "created_at": datetime.now(timezone.utc).isoformat(), "created_by": user["email"]
     }
     await db.campaigns.insert_one(campaign)
     campaign.pop("_id", None)
@@ -264,8 +334,7 @@ async def update_campaign(campaign_id: str, data: CampaignUpdate, user=Depends(r
     result = await db.campaigns.update_one({"id": campaign_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Campanha nao encontrada")
-    updated = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
-    return updated
+    return await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
 
 @api_router.delete("/campaigns/{campaign_id}")
 async def delete_campaign(campaign_id: str, user=Depends(require_admin)):
@@ -277,8 +346,7 @@ async def delete_campaign(campaign_id: str, user=Depends(require_admin)):
 # ─── Products (Loja) Routes ───
 @api_router.get("/products")
 async def get_products():
-    products = await db.products.find({}, {"_id": 0}).to_list(100)
-    return products
+    return await db.products.find({}, {"_id": 0}).to_list(100)
 
 @api_router.get("/products/{product_id}")
 async def get_product(product_id: str):
@@ -291,18 +359,12 @@ async def get_product(product_id: str):
 async def create_product(data: ProductCreate, user=Depends(require_admin)):
     active_count = await db.products.count_documents({"is_active": True})
     if active_count >= MAX_PRODUCTS:
-        raise HTTPException(status_code=400, detail=f"Maximo de {MAX_PRODUCTS} produtos ativos atingido")
+        raise HTTPException(status_code=400, detail=f"Maximo de {MAX_PRODUCTS} produtos ativos")
     product = {
-        "id": str(uuid.uuid4()),
-        "title": data.title,
-        "description": data.description,
-        "image_url": data.image_url,
-        "price": data.price,
-        "stock": data.stock,
-        "sold_count": 0,
-        "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "created_by": user["email"]
+        "id": str(uuid.uuid4()), "title": data.title, "description": data.description,
+        "image_url": data.image_url, "price": data.price, "stock": data.stock,
+        "sold_count": 0, "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat(), "created_by": user["email"]
     }
     await db.products.insert_one(product)
     product.pop("_id", None)
@@ -314,8 +376,7 @@ async def update_product(product_id: str, data: ProductUpdate, user=Depends(requ
     result = await db.products.update_one({"id": product_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Produto nao encontrado")
-    updated = await db.products.find_one({"id": product_id}, {"_id": 0})
-    return updated
+    return await db.products.find_one({"id": product_id}, {"_id": 0})
 
 @api_router.delete("/products/{product_id}")
 async def delete_product(product_id: str, user=Depends(require_admin)):
@@ -324,7 +385,49 @@ async def delete_product(product_id: str, user=Depends(require_admin)):
         raise HTTPException(status_code=404, detail="Produto nao encontrado")
     return {"message": "Produto excluido"}
 
+# ─── User Orders (Purchase History) ───
+@api_router.get("/user/orders")
+async def get_user_orders(user=Depends(get_current_user)):
+    transactions = await db.payment_transactions.find(
+        {"user_id": user["_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Enrich with item titles
+    for tx in transactions:
+        if tx.get("type") == "campaign" and tx.get("campaign_id"):
+            camp = await db.campaigns.find_one({"id": tx["campaign_id"]}, {"_id": 0, "title": 1, "cover_image": 1})
+            tx["item_title"] = camp["title"] if camp else "Campanha"
+            tx["item_image"] = camp.get("cover_image", "") if camp else ""
+        elif tx.get("type") == "product" and tx.get("product_id"):
+            prod = await db.products.find_one({"id": tx["product_id"]}, {"_id": 0, "title": 1, "image_url": 1})
+            tx["item_title"] = prod["title"] if prod else "Produto"
+            tx["item_image"] = prod.get("image_url", "") if prod else ""
+        else:
+            tx["item_title"] = "Item"
+            tx["item_image"] = ""
+    return transactions
+
 # ─── Payment Routes ───
+async def process_successful_payment(tx):
+    """Send email notification after successful payment"""
+    item_title = "Item"
+    if tx.get("type") == "campaign" and tx.get("campaign_id"):
+        camp = await db.campaigns.find_one({"id": tx["campaign_id"]}, {"_id": 0})
+        item_title = camp["title"] if camp else "Campanha"
+    elif tx.get("type") == "product" and tx.get("product_id"):
+        prod = await db.products.find_one({"id": tx["product_id"]}, {"_id": 0})
+        item_title = prod["title"] if prod else "Produto"
+    
+    html = build_purchase_email(
+        user_name=tx.get("user_name", "Cliente"),
+        item_title=item_title,
+        amount=tx.get("amount", 0),
+        tx_type=tx.get("type", "product")
+    )
+    subject = f"{'Apoio' if tx['type'] == 'campaign' else 'Compra'} confirmado(a) - {item_title}"
+    if tx.get("user_email"):
+        await send_notification_email(tx["user_email"], subject, html)
+
 @api_router.post("/checkout/campaign")
 async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, user=Depends(get_current_user)):
     campaign = await db.campaigns.find_one({"id": data.campaign_id}, {"_id": 0})
@@ -342,38 +445,23 @@ async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, use
     
     success_url = f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{data.origin_url}/campaign/{data.campaign_id}"
-    
     metadata = {
-        "type": "campaign",
-        "campaign_id": data.campaign_id,
-        "tier_id": data.tier_id,
-        "user_id": user["_id"],
-        "user_email": user["email"],
-        "user_name": user.get("name", ""),
+        "type": "campaign", "campaign_id": data.campaign_id, "tier_id": data.tier_id,
+        "user_id": user["_id"], "user_email": user["email"], "user_name": user.get("name", ""),
         "platform_fee_percent": str(PLATFORM_FEE_PERCENT)
     }
-    
     checkout_request = CheckoutSessionRequest(
-        amount=amount, currency="brl",
-        success_url=success_url, cancel_url=cancel_url,
+        amount=amount, currency="brl", success_url=success_url, cancel_url=cancel_url,
         metadata=metadata, payment_methods=["card"]
     )
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
     transaction = {
-        "id": str(uuid.uuid4()),
-        "session_id": session.session_id,
-        "type": "campaign",
-        "campaign_id": data.campaign_id,
-        "tier_id": data.tier_id,
-        "product_id": None,
-        "amount": amount,
-        "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
-        "currency": "brl",
-        "user_id": user["_id"],
-        "user_email": user["email"],
-        "user_name": user.get("name", ""),
-        "payment_status": "pending",
+        "id": str(uuid.uuid4()), "session_id": session.session_id, "type": "campaign",
+        "campaign_id": data.campaign_id, "tier_id": data.tier_id, "product_id": None,
+        "amount": amount, "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
+        "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
+        "user_name": user.get("name", ""), "payment_status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.payment_transactions.insert_one(transaction)
@@ -395,39 +483,24 @@ async def checkout_product(data: CheckoutProductRequest, request: Request, user=
     
     success_url = f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{data.origin_url}/loja"
-    
     metadata = {
-        "type": "product",
-        "product_id": data.product_id,
-        "quantity": str(data.quantity),
-        "user_id": user["_id"],
-        "user_email": user["email"],
-        "user_name": user.get("name", ""),
+        "type": "product", "product_id": data.product_id, "quantity": str(data.quantity),
+        "user_id": user["_id"], "user_email": user["email"], "user_name": user.get("name", ""),
         "platform_fee_percent": str(PLATFORM_FEE_PERCENT)
     }
-    
     checkout_request = CheckoutSessionRequest(
-        amount=amount, currency="brl",
-        success_url=success_url, cancel_url=cancel_url,
+        amount=amount, currency="brl", success_url=success_url, cancel_url=cancel_url,
         metadata=metadata, payment_methods=["card"]
     )
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
     transaction = {
-        "id": str(uuid.uuid4()),
-        "session_id": session.session_id,
-        "type": "product",
-        "campaign_id": None,
-        "tier_id": None,
-        "product_id": data.product_id,
-        "quantity": data.quantity,
-        "amount": amount,
+        "id": str(uuid.uuid4()), "session_id": session.session_id, "type": "product",
+        "campaign_id": None, "tier_id": None, "product_id": data.product_id,
+        "quantity": data.quantity, "amount": amount,
         "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
-        "currency": "brl",
-        "user_id": user["_id"],
-        "user_email": user["email"],
-        "user_name": user.get("name", ""),
-        "payment_status": "pending",
+        "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
+        "user_name": user.get("name", ""), "payment_status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.payment_transactions.insert_one(transaction)
@@ -448,26 +521,21 @@ async def get_checkout_status(session_id: str, request: Request):
         )
         if tx.get("type") == "campaign" and tx.get("campaign_id"):
             await db.campaigns.update_one(
-                {"id": tx["campaign_id"]},
-                {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
+                {"id": tx["campaign_id"]}, {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
             )
         elif tx.get("type") == "product" and tx.get("product_id"):
             qty = tx.get("quantity", 1)
             await db.products.update_one(
-                {"id": tx["product_id"]},
-                {"$inc": {"sold_count": qty, "stock": -qty}}
+                {"id": tx["product_id"]}, {"$inc": {"sold_count": qty, "stock": -qty}}
             )
+        # Send email notification
+        await process_successful_payment(tx)
     elif tx and status.payment_status != "paid":
         await db.payment_transactions.update_one(
             {"session_id": session_id}, {"$set": {"payment_status": status.payment_status}}
         )
     
-    return {
-        "status": status.status,
-        "payment_status": status.payment_status,
-        "amount_total": status.amount_total,
-        "currency": status.currency
-    }
+    return {"status": status.status, "payment_status": status.payment_status, "amount_total": status.amount_total, "currency": status.currency}
 
 @api_router.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
@@ -487,15 +555,15 @@ async def stripe_webhook(request: Request):
                 )
                 if tx.get("type") == "campaign" and tx.get("campaign_id"):
                     await db.campaigns.update_one(
-                        {"id": tx["campaign_id"]},
-                        {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
+                        {"id": tx["campaign_id"]}, {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
                     )
                 elif tx.get("type") == "product" and tx.get("product_id"):
                     qty = tx.get("quantity", 1)
                     await db.products.update_one(
-                        {"id": tx["product_id"]},
-                        {"$inc": {"sold_count": qty, "stock": -qty}}
+                        {"id": tx["product_id"]}, {"$inc": {"sold_count": qty, "stock": -qty}}
                     )
+                tx_clean = {k: v for k, v in tx.items() if k != "_id"}
+                await process_successful_payment(tx_clean)
         return {"status": "ok"}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
@@ -507,6 +575,7 @@ async def get_admin_stats(user=Depends(require_admin)):
     campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(100)
     products = await db.products.find({}, {"_id": 0}).to_list(100)
     transactions = await db.payment_transactions.find({}, {"_id": 0}).to_list(1000)
+    email_logs = await db.email_logs.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
     
     total_raised_campaigns = sum(c.get("raised_amount", 0) for c in campaigns)
     total_product_sales = sum(t["amount"] for t in transactions if t.get("type") == "product" and t.get("payment_status") == "paid")
@@ -517,16 +586,12 @@ async def get_admin_stats(user=Depends(require_admin)):
     active_products = sum(1 for p in products if p.get("is_active"))
     
     return {
-        "total_raised": total_revenue,
-        "total_raised_campaigns": total_raised_campaigns,
-        "total_product_sales": total_product_sales,
-        "platform_fee_total": total_fee,
-        "total_backers": total_backers,
-        "active_campaigns": active_campaigns,
-        "active_products": active_products,
-        "max_campaigns": MAX_CAMPAIGNS,
-        "max_products": MAX_PRODUCTS,
-        "transactions": transactions
+        "total_raised": total_revenue, "total_raised_campaigns": total_raised_campaigns,
+        "total_product_sales": total_product_sales, "platform_fee_total": total_fee,
+        "total_backers": total_backers, "active_campaigns": active_campaigns,
+        "active_products": active_products, "max_campaigns": MAX_CAMPAIGNS,
+        "max_products": MAX_PRODUCTS, "transactions": transactions,
+        "email_logs": email_logs, "has_resend": HAS_RESEND
     }
 
 # ─── Newsletter ───
@@ -536,16 +601,12 @@ async def subscribe_newsletter(data: NewsletterSubscribe):
     existing = await db.newsletter.find_one({"email": email})
     if existing:
         return {"message": "Ja inscrito"}
-    await db.newsletter.insert_one({
-        "id": str(uuid.uuid4()), "email": email,
-        "subscribed_at": datetime.now(timezone.utc).isoformat()
-    })
+    await db.newsletter.insert_one({"id": str(uuid.uuid4()), "email": email, "subscribed_at": datetime.now(timezone.utc).isoformat()})
     return {"message": "Inscrito com sucesso!"}
 
 @api_router.get("/newsletter/subscribers")
 async def get_subscribers(user=Depends(require_admin)):
-    subs = await db.newsletter.find({}, {"_id": 0}).to_list(1000)
-    return subs
+    return await db.newsletter.find({}, {"_id": 0}).to_list(1000)
 
 # ─── Gallery ───
 @api_router.get("/gallery")
@@ -577,42 +638,32 @@ async def get_bio():
 @api_router.put("/bio")
 async def update_bio(data: BioUpdate, user=Depends(require_admin)):
     await db.site_settings.update_one(
-        {"key": "biography"},
-        {"$set": {"key": "biography", "content": data.content, "photo_url": data.photo_url}},
-        upsert=True
+        {"key": "biography"}, {"$set": {"key": "biography", "content": data.content, "photo_url": data.photo_url}}, upsert=True
     )
     return {"message": "Biografia atualizada"}
 
-# ─── Seed Admin & Startup ───
+# ─── Seed & Startup ───
 async def seed_admin():
     admin_email = os.environ.get("ADMIN_EMAIL", "mateusbpugli@gmail.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "Mateus Buarque 1101")
     existing = await db.users.find_one({"email": admin_email})
     if existing is None:
-        hashed = hash_password(admin_password)
         await db.users.insert_one({
-            "email": admin_email, "password_hash": hashed,
+            "email": admin_email, "password_hash": hash_password(admin_password),
             "name": "Edegar Agostinho", "role": "admin", "phone": "",
             "created_at": datetime.now(timezone.utc).isoformat()
         })
         logger.info(f"Admin seeded: {admin_email}")
     elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one(
-            {"email": admin_email},
-            {"$set": {"password_hash": hash_password(admin_password)}}
-        )
-        logger.info("Admin password updated")
+        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
 
-    bio = await db.site_settings.find_one({"key": "biography"})
-    if not bio:
+    if not await db.site_settings.find_one({"key": "biography"}):
         await db.site_settings.insert_one({
             "key": "biography",
-            "content": "Edegar Agostinho e um comediante, escritor e ilustrador brasileiro. Com um humor unico que mistura o absurdo com o cotidiano, ele conquistou leitores com obras como 'Mae, Eu Quero Um Apocalipse Zumbi!', 'Pohi - O Gato Assassino' e 'As Historias Mais Sem Graca do Mundo'. Suas historias sao recheadas de personagens memoraveis e situacoes hilariantes que fazem o leitor rir do inicio ao fim.",
+            "content": "Edegar Agostinho e um comediante, escritor e ilustrador brasileiro. Com um humor unico que mistura o absurdo com o cotidiano, ele conquistou leitores com obras como 'Mae, Eu Quero Um Apocalipse Zumbi!', 'Pohi - O Gato Assassino' e 'As Historias Mais Sem Graca do Mundo'.",
             "photo_url": "https://images.unsplash.com/photo-1607207355078-b66a28c30db2?w=600"
         })
-
-    gallery_count = await db.gallery.count_documents({})
-    if gallery_count == 0:
+    if await db.gallery.count_documents({}) == 0:
         await db.gallery.insert_many([
             {"id": str(uuid.uuid4()), "image_url": "https://images.unsplash.com/photo-1713552565611-617645f853b4?w=600", "caption": "Show de stand-up", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": str(uuid.uuid4()), "image_url": "https://images.unsplash.com/photo-1607207355078-b66a28c30db2?w=600", "caption": "Performance ao vivo", "created_at": datetime.now(timezone.utc).isoformat()},
@@ -630,11 +681,4 @@ async def shutdown_db_client():
     client.close()
 
 app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])

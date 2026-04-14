@@ -72,7 +72,7 @@ class CrowdfundingAPITester:
             "POST",
             "auth/login",
             200,
-            data={"email": "admin@edegar.com", "password": "Edegar2026!"}
+            data={"email": "mateusbpugli@gmail.com", "password": "Mateus Buarque 1101"}
         )
         
         if success and 'id' in response:
@@ -325,6 +325,87 @@ class CrowdfundingAPITester:
         
         return success
 
+    def test_site_settings(self):
+        """Test site settings functionality (NEW in iteration 3)"""
+        print("\n" + "="*50)
+        print("TESTING SITE SETTINGS")
+        print("="*50)
+        
+        # Get site settings (public endpoint)
+        success, settings = self.run_test(
+            "Get Site Settings",
+            "GET",
+            "site-settings",
+            200
+        )
+        
+        if not success:
+            return False
+            
+        print(f"   Current site name: {settings.get('site_name', 'N/A')}")
+        print(f"   Current support email: {settings.get('support_email', 'N/A')}")
+        
+        # Update site settings (admin only)
+        settings_data = {
+            "site_name": "Test Site Name",
+            "site_subtitle": "Test Subtitle",
+            "primary_color": "#FF0000",
+            "secondary_color": "#00FF00",
+            "hero_title": "Test Hero Title",
+            "hero_subtitle": "Test Hero Subtitle",
+            "support_email": "test@example.com",
+            "marquee_text": "TEST MARQUEE * UPDATED * SETTINGS *"
+        }
+        
+        success, _ = self.run_test(
+            "Update Site Settings",
+            "PUT",
+            "site-settings",
+            200,
+            data=settings_data,
+            auth_required=True
+        )
+        
+        if not success:
+            return False
+            
+        # Verify settings were updated
+        success, updated_settings = self.run_test(
+            "Verify Updated Site Settings",
+            "GET",
+            "site-settings",
+            200
+        )
+        
+        if success:
+            print(f"   Updated site name: {updated_settings.get('site_name', 'N/A')}")
+            print(f"   Updated support email: {updated_settings.get('support_email', 'N/A')}")
+        
+        return success
+
+    def test_user_orders(self):
+        """Test user order history functionality (NEW in iteration 3)"""
+        print("\n" + "="*50)
+        print("TESTING USER ORDER HISTORY")
+        print("="*50)
+        
+        # Get user orders (requires authentication)
+        success, orders = self.run_test(
+            "Get User Orders",
+            "GET",
+            "user/orders",
+            200,
+            auth_required=True
+        )
+        
+        if success:
+            print(f"   Found {len(orders)} orders for current user")
+            if orders:
+                for i, order in enumerate(orders[:3]):  # Show first 3 orders
+                    print(f"   Order {i+1}: {order.get('item_title', 'N/A')} - R$ {order.get('amount', 0)} - {order.get('payment_status', 'N/A')}")
+        
+        return success
+
     def test_checkout_creation(self):
         """Test checkout creation (without actual payment)"""
         print("\n" + "="*50)
@@ -358,18 +439,22 @@ class CrowdfundingAPITester:
         checkout_data = {
             "campaign_id": test_campaign['id'],
             "tier_id": tier['id'],
-            "origin_url": self.base_url,
-            "backer_name": "Test Backer",
-            "backer_email": "test@example.com"
+            "origin_url": self.base_url
         }
         
         success, checkout = self.run_test(
             "Create Checkout Session",
             "POST",
-            "checkout",
+            "checkout/campaign",
             200,
-            data=checkout_data
+            data=checkout_data,
+            auth_required=True
         )
+        
+        if success and checkout.get('url'):
+            print(f"   Checkout URL created: {checkout['url'][:50]}...")
+            
+        return success
         
         if success and checkout.get('url'):
             print(f"   Checkout URL created: {checkout['url'][:50]}...")
@@ -390,6 +475,8 @@ def main():
     # Test all endpoints
     tests = [
         tester.test_auth_me,
+        tester.test_site_settings,  # NEW in iteration 3
+        tester.test_user_orders,    # NEW in iteration 3
         tester.test_campaigns_crud,
         tester.test_newsletter,
         tester.test_gallery,
