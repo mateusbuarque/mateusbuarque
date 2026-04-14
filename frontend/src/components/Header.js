@@ -11,6 +11,7 @@ export default function Header() {
   const links = [
     { to: "/", label: "Inicio" },
     { to: "/#campanhas", label: "Campanhas" },
+    { to: "/loja", label: "Loja", isLink: true },
     { to: "/#biografia", label: "Biografia" },
     { to: "/#galeria", label: "Galeria" },
   ];
@@ -40,38 +41,37 @@ export default function Header() {
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-8">
           {links.map((l) => (
-            <button
-              key={l.to}
-              onClick={() => handleNavClick(l.to)}
-              className="font-['Outfit'] font-bold text-sm uppercase tracking-wider text-zinc-700 hover:text-zinc-950 transition-colors"
-            >
-              {l.label}
-            </button>
-          ))}
-          {user && user.role === "admin" ? (
-            <div className="flex items-center gap-4">
+            l.isLink ? (
               <Link
-                to="/admin"
-                className="brutalist-btn text-xs py-2 px-4"
-                data-testid="admin-panel-link"
+                key={l.to}
+                to={l.to}
+                className="font-['Outfit'] font-bold text-sm uppercase tracking-wider text-zinc-700 hover:text-zinc-950 transition-colors"
               >
-                Admin
+                {l.label}
               </Link>
+            ) : (
               <button
-                onClick={logout}
-                className="text-zinc-500 hover:text-zinc-950"
-                data-testid="logout-btn"
+                key={l.to}
+                onClick={() => handleNavClick(l.to)}
+                className="font-['Outfit'] font-bold text-sm uppercase tracking-wider text-zinc-700 hover:text-zinc-950 transition-colors"
               >
+                {l.label}
+              </button>
+            )
+          ))}
+          {user ? (
+            <div className="flex items-center gap-4">
+              {user.role === "admin" && (
+                <Link to="/admin" className="brutalist-btn text-xs py-2 px-4" data-testid="admin-panel-link">Admin</Link>
+              )}
+              <span className="text-xs text-zinc-500 font-bold">{user.name || user.email}</span>
+              <button onClick={logout} className="text-zinc-500 hover:text-zinc-950" data-testid="logout-btn">
                 <LogOut size={18} />
               </button>
             </div>
           ) : (
-            <Link
-              to="/admin/login"
-              className="font-['Outfit'] font-bold text-sm uppercase tracking-wider text-zinc-400 hover:text-zinc-700 transition-colors"
-              data-testid="login-link"
-            >
-              Admin
+            <Link to="/login" className="brutalist-btn text-xs py-2 px-4" data-testid="login-link">
+              Entrar
             </Link>
           )}
         </nav>
@@ -91,21 +91,23 @@ export default function Header() {
         <div className="md:hidden border-t-2 border-zinc-950 bg-white">
           <div className="px-4 py-4 flex flex-col gap-3">
             {links.map((l) => (
-              <button
-                key={l.to}
-                onClick={() => handleNavClick(l.to)}
-                className="font-['Outfit'] font-bold text-sm uppercase tracking-wider text-zinc-700 text-left"
-              >
-                {l.label}
-              </button>
+              l.isLink ? (
+                <Link key={l.to} to={l.to} onClick={() => setMobileOpen(false)} className="font-['Outfit'] font-bold text-sm uppercase tracking-wider text-zinc-700 text-left">
+                  {l.label}
+                </Link>
+              ) : (
+                <button key={l.to} onClick={() => handleNavClick(l.to)} className="font-['Outfit'] font-bold text-sm uppercase tracking-wider text-zinc-700 text-left">
+                  {l.label}
+                </button>
+              )
             ))}
-            {user && user.role === "admin" ? (
+            {user ? (
               <>
-                <Link to="/admin" className="brutalist-btn text-xs py-2 px-4 text-center" onClick={() => setMobileOpen(false)}>Admin</Link>
-                <button onClick={() => { logout(); setMobileOpen(false); }} className="text-zinc-500 text-left text-sm font-bold uppercase">Sair</button>
+                {user.role === "admin" && <Link to="/admin" className="brutalist-btn text-xs py-2 px-4 text-center" onClick={() => setMobileOpen(false)}>Admin</Link>}
+                <button onClick={() => { logout(); setMobileOpen(false); }} className="text-zinc-500 text-left text-sm font-bold uppercase">Sair ({user.name || user.email})</button>
               </>
             ) : (
-              <Link to="/admin/login" onClick={() => setMobileOpen(false)} className="text-zinc-400 text-sm font-bold uppercase">Admin</Link>
+              <Link to="/login" onClick={() => setMobileOpen(false)} className="brutalist-btn text-xs py-2 px-4 text-center">Entrar</Link>
             )}
           </div>
         </div>

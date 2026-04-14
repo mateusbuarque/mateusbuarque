@@ -6,22 +6,23 @@ load_dotenv(ROOT_DIR / '.env')
 
 from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 import bcrypt
 import jwt
 import uuid
+import re
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional
 from bson import ObjectId
 
 from emergentintegrations.payments.stripe.checkout import (
-    StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+    StripeCheckout, CheckoutSessionRequest
 )
 
-# MongoDB
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
@@ -32,6 +33,7 @@ api_router = APIRouter(prefix="/api")
 JWT_ALGORITHM = "HS256"
 PLATFORM_FEE_PERCENT = 5.0
 MAX_CAMPAIGNS = 10
+MAX_PRODUCTS = 10
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -47,8 +49,8 @@ def verify_password(plain: str, hashed: str) -> bool:
 def get_jwt_secret():
     return os.environ["JWT_SECRET"]
 
-def create_access_token(user_id: str, email: str) -> str:
-    payload = {"sub": user_id, "email": email, "exp": datetime.now(timezone.utc) + timedelta(hours=24), "type": "access"}
+def create_access_token(user_id: str, email: str, role: str) -> str:
+    payload = {"sub": user_id, "email": email, "role": role, "exp": datetime.now(timezone.utc) + timedelta(hours=24), "type": "access"}
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 async def get_current_user(request: Request) -> dict:
@@ -58,26 +60,38 @@ async def get_current_user(request: Request) -> dict:
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
     if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise HTTPException(status_code=401, detail="Voce precisa estar logado")
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         if payload.get("type") != "access":
-            raise HTTPException(status_code=401, detail="Invalid token type")
+            raise HTTPException(status_code=401, detail="Token invalido")
         user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
         if not user:
-            raise HTTPException(status_code=401, detail="User not found")
+            raise HTTPException(status_code=401, detail="Usuario nao encontrado")
         user["_id"] = str(user["_id"])
         user.pop("password_hash", None)
         return user
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        raise HTTPException(status_code=401, detail="Sessao expirada. Faca login novamente.")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Token invalido")
+
+async def require_admin(request: Request) -> dict:
+    user = await get_current_user(request)
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador")
+    return user
 
 # ─── Pydantic Models ───
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    phone: str
 
 class CampaignTier(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -104,6 +118,21 @@ class CampaignUpdate(BaseModel):
     tiers: Optional[List[CampaignTier]] = None
     is_active: Optional[bool] = None
 
+class ProductCreate(BaseModel):
+    title: str
+    description: str
+    image_url: str
+    price: float
+    stock: int = 999
+
+class ProductUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    price: Optional[float] = None
+    stock: Optional[int] = None
+    is_active: Optional[bool] = None
+
 class NewsletterSubscribe(BaseModel):
     email: str
 
@@ -115,35 +144,73 @@ class BioUpdate(BaseModel):
     content: str
     photo_url: str = ""
 
-class CheckoutRequest(BaseModel):
+class CheckoutCampaignRequest(BaseModel):
     campaign_id: str
     tier_id: str
     origin_url: str
-    backer_name: str = ""
-    backer_email: str = ""
+
+class CheckoutProductRequest(BaseModel):
+    product_id: str
+    quantity: int = 1
+    origin_url: str
 
 # ─── Auth Routes ───
+@api_router.post("/auth/register")
+async def register(req: RegisterRequest):
+    email = req.email.lower().strip()
+    phone = re.sub(r'[^0-9+]', '', req.phone.strip())
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Senha deve ter pelo menos 6 caracteres")
+    if not phone or len(phone) < 8:
+        raise HTTPException(status_code=400, detail="Numero de celular invalido")
+    
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email ja cadastrado")
+
+    hashed = hash_password(req.password)
+    user_doc = {
+        "email": email,
+        "password_hash": hashed,
+        "name": req.name.strip(),
+        "phone": phone,
+        "role": "user",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    result = await db.users.insert_one(user_doc)
+    user_id = str(result.inserted_id)
+    token = create_access_token(user_id, email, "user")
+    
+    response = JSONResponse(content={
+        "id": user_id,
+        "email": email,
+        "name": req.name.strip(),
+        "phone": phone,
+        "role": "user"
+    })
+    response.set_cookie(key="access_token", value=token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
+    return response
+
 @api_router.post("/auth/login")
-async def login(req: LoginRequest, request: Request):
-    from starlette.responses import JSONResponse
+async def login(req: LoginRequest):
     email = req.email.lower().strip()
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(req.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token(str(user["_id"]), email)
+        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+    token = create_access_token(str(user["_id"]), email, user.get("role", "user"))
     response = JSONResponse(content={
         "id": str(user["_id"]),
         "email": user["email"],
         "name": user.get("name", ""),
-        "role": user.get("role", "admin")
+        "phone": user.get("phone", ""),
+        "role": user.get("role", "user")
     })
     response.set_cookie(key="access_token", value=token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
     return response
 
 @api_router.post("/auth/logout")
 async def logout():
-    from starlette.responses import JSONResponse
-    response = JSONResponse(content={"message": "Logged out"})
+    response = JSONResponse(content={"message": "Desconectado"})
     response.delete_cookie("access_token", path="/")
     return response
 
@@ -161,15 +228,14 @@ async def get_campaigns():
 async def get_campaign(campaign_id: str):
     campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+        raise HTTPException(status_code=404, detail="Campanha nao encontrada")
     return campaign
 
 @api_router.post("/campaigns")
-async def create_campaign(data: CampaignCreate, user=Depends(get_current_user)):
+async def create_campaign(data: CampaignCreate, user=Depends(require_admin)):
     active_count = await db.campaigns.count_documents({"is_active": True})
     if active_count >= MAX_CAMPAIGNS:
-        raise HTTPException(status_code=400, detail=f"Maximum of {MAX_CAMPAIGNS} active campaigns reached")
-    
+        raise HTTPException(status_code=400, detail=f"Maximo de {MAX_CAMPAIGNS} campanhas ativas atingido")
     campaign = {
         "id": str(uuid.uuid4()),
         "title": data.title,
@@ -191,40 +257,84 @@ async def create_campaign(data: CampaignCreate, user=Depends(get_current_user)):
     return campaign
 
 @api_router.put("/campaigns/{campaign_id}")
-async def update_campaign(campaign_id: str, data: CampaignUpdate, user=Depends(get_current_user)):
+async def update_campaign(campaign_id: str, data: CampaignUpdate, user=Depends(require_admin)):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if "tiers" in update_data:
         update_data["tiers"] = [t if isinstance(t, dict) else t.model_dump() for t in update_data["tiers"]]
     result = await db.campaigns.update_one({"id": campaign_id}, {"$set": update_data})
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+        raise HTTPException(status_code=404, detail="Campanha nao encontrada")
     updated = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
     return updated
 
 @api_router.delete("/campaigns/{campaign_id}")
-async def delete_campaign(campaign_id: str, user=Depends(get_current_user)):
+async def delete_campaign(campaign_id: str, user=Depends(require_admin)):
     result = await db.campaigns.delete_one({"id": campaign_id})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    return {"message": "Campaign deleted"}
+        raise HTTPException(status_code=404, detail="Campanha nao encontrada")
+    return {"message": "Campanha excluida"}
+
+# ─── Products (Loja) Routes ───
+@api_router.get("/products")
+async def get_products():
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
+    return products
+
+@api_router.get("/products/{product_id}")
+async def get_product(product_id: str):
+    product = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    return product
+
+@api_router.post("/products")
+async def create_product(data: ProductCreate, user=Depends(require_admin)):
+    active_count = await db.products.count_documents({"is_active": True})
+    if active_count >= MAX_PRODUCTS:
+        raise HTTPException(status_code=400, detail=f"Maximo de {MAX_PRODUCTS} produtos ativos atingido")
+    product = {
+        "id": str(uuid.uuid4()),
+        "title": data.title,
+        "description": data.description,
+        "image_url": data.image_url,
+        "price": data.price,
+        "stock": data.stock,
+        "sold_count": 0,
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user["email"]
+    }
+    await db.products.insert_one(product)
+    product.pop("_id", None)
+    return product
+
+@api_router.put("/products/{product_id}")
+async def update_product(product_id: str, data: ProductUpdate, user=Depends(require_admin)):
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    result = await db.products.update_one({"id": product_id}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    updated = await db.products.find_one({"id": product_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/products/{product_id}")
+async def delete_product(product_id: str, user=Depends(require_admin)):
+    result = await db.products.delete_one({"id": product_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    return {"message": "Produto excluido"}
 
 # ─── Payment Routes ───
-@api_router.post("/checkout")
-async def create_checkout(data: CheckoutRequest, request: Request):
+@api_router.post("/checkout/campaign")
+async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, user=Depends(get_current_user)):
     campaign = await db.campaigns.find_one({"id": data.campaign_id}, {"_id": 0})
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    
-    tier = None
-    for t in campaign.get("tiers", []):
-        if t["id"] == data.tier_id:
-            tier = t
-            break
+        raise HTTPException(status_code=404, detail="Campanha nao encontrada")
+    tier = next((t for t in campaign.get("tiers", []) if t["id"] == data.tier_id), None)
     if not tier:
-        raise HTTPException(status_code=404, detail="Tier not found")
+        raise HTTPException(status_code=404, detail="Recompensa nao encontrada")
     
     amount = float(tier["price"])
-    
     api_key = os.environ.get("STRIPE_API_KEY")
     host_url = str(request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
@@ -234,38 +344,93 @@ async def create_checkout(data: CheckoutRequest, request: Request):
     cancel_url = f"{data.origin_url}/campaign/{data.campaign_id}"
     
     metadata = {
+        "type": "campaign",
         "campaign_id": data.campaign_id,
         "tier_id": data.tier_id,
-        "backer_name": data.backer_name,
-        "backer_email": data.backer_email,
+        "user_id": user["_id"],
+        "user_email": user["email"],
+        "user_name": user.get("name", ""),
         "platform_fee_percent": str(PLATFORM_FEE_PERCENT)
     }
     
     checkout_request = CheckoutSessionRequest(
-        amount=amount,
-        currency="brl",
-        success_url=success_url,
-        cancel_url=cancel_url,
-        metadata=metadata,
-        payment_methods=["card"]
+        amount=amount, currency="brl",
+        success_url=success_url, cancel_url=cancel_url,
+        metadata=metadata, payment_methods=["card"]
     )
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
     transaction = {
         "id": str(uuid.uuid4()),
         "session_id": session.session_id,
+        "type": "campaign",
         "campaign_id": data.campaign_id,
         "tier_id": data.tier_id,
+        "product_id": None,
         "amount": amount,
         "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
         "currency": "brl",
-        "backer_name": data.backer_name,
-        "backer_email": data.backer_email,
+        "user_id": user["_id"],
+        "user_email": user["email"],
+        "user_name": user.get("name", ""),
         "payment_status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.payment_transactions.insert_one(transaction)
+    return {"url": session.url, "session_id": session.session_id}
+
+@api_router.post("/checkout/product")
+async def checkout_product(data: CheckoutProductRequest, request: Request, user=Depends(get_current_user)):
+    product = await db.products.find_one({"id": data.product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    if not product.get("is_active"):
+        raise HTTPException(status_code=400, detail="Produto indisponivel")
     
+    amount = float(product["price"]) * data.quantity
+    api_key = os.environ.get("STRIPE_API_KEY")
+    host_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+    
+    success_url = f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{data.origin_url}/loja"
+    
+    metadata = {
+        "type": "product",
+        "product_id": data.product_id,
+        "quantity": str(data.quantity),
+        "user_id": user["_id"],
+        "user_email": user["email"],
+        "user_name": user.get("name", ""),
+        "platform_fee_percent": str(PLATFORM_FEE_PERCENT)
+    }
+    
+    checkout_request = CheckoutSessionRequest(
+        amount=amount, currency="brl",
+        success_url=success_url, cancel_url=cancel_url,
+        metadata=metadata, payment_methods=["card"]
+    )
+    session = await stripe_checkout.create_checkout_session(checkout_request)
+    
+    transaction = {
+        "id": str(uuid.uuid4()),
+        "session_id": session.session_id,
+        "type": "product",
+        "campaign_id": None,
+        "tier_id": None,
+        "product_id": data.product_id,
+        "quantity": data.quantity,
+        "amount": amount,
+        "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
+        "currency": "brl",
+        "user_id": user["_id"],
+        "user_email": user["email"],
+        "user_name": user.get("name", ""),
+        "payment_status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.payment_transactions.insert_one(transaction)
     return {"url": session.url, "session_id": session.session_id}
 
 @api_router.get("/checkout/status/{session_id}")
@@ -274,23 +439,27 @@ async def get_checkout_status(session_id: str, request: Request):
     host_url = str(request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
     stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
-    
     status = await stripe_checkout.get_checkout_status(session_id)
     
     tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     if tx and tx["payment_status"] != "paid" and status.payment_status == "paid":
         await db.payment_transactions.update_one(
-            {"session_id": session_id},
-            {"$set": {"payment_status": "paid"}}
+            {"session_id": session_id}, {"$set": {"payment_status": "paid"}}
         )
-        await db.campaigns.update_one(
-            {"id": tx["campaign_id"]},
-            {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
-        )
+        if tx.get("type") == "campaign" and tx.get("campaign_id"):
+            await db.campaigns.update_one(
+                {"id": tx["campaign_id"]},
+                {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
+            )
+        elif tx.get("type") == "product" and tx.get("product_id"):
+            qty = tx.get("quantity", 1)
+            await db.products.update_one(
+                {"id": tx["product_id"]},
+                {"$inc": {"sold_count": qty, "stock": -qty}}
+            )
     elif tx and status.payment_status != "paid":
         await db.payment_transactions.update_one(
-            {"session_id": session_id},
-            {"$set": {"payment_status": status.payment_status}}
+            {"session_id": session_id}, {"$set": {"payment_status": status.payment_status}}
         )
     
     return {
@@ -308,20 +477,25 @@ async def stripe_webhook(request: Request):
     host_url = str(request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
     stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
-    
     try:
         webhook_response = await stripe_checkout.handle_webhook(body, signature)
         if webhook_response.payment_status == "paid":
             tx = await db.payment_transactions.find_one({"session_id": webhook_response.session_id})
             if tx and tx["payment_status"] != "paid":
                 await db.payment_transactions.update_one(
-                    {"session_id": webhook_response.session_id},
-                    {"$set": {"payment_status": "paid"}}
+                    {"session_id": webhook_response.session_id}, {"$set": {"payment_status": "paid"}}
                 )
-                await db.campaigns.update_one(
-                    {"id": tx["campaign_id"]},
-                    {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
-                )
+                if tx.get("type") == "campaign" and tx.get("campaign_id"):
+                    await db.campaigns.update_one(
+                        {"id": tx["campaign_id"]},
+                        {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
+                    )
+                elif tx.get("type") == "product" and tx.get("product_id"):
+                    qty = tx.get("quantity", 1)
+                    await db.products.update_one(
+                        {"id": tx["product_id"]},
+                        {"$inc": {"sold_count": qty, "stock": -qty}}
+                    )
         return {"status": "ok"}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
@@ -329,21 +503,29 @@ async def stripe_webhook(request: Request):
 
 # ─── Admin Stats ───
 @api_router.get("/admin/stats")
-async def get_admin_stats(user=Depends(get_current_user)):
+async def get_admin_stats(user=Depends(require_admin)):
     campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(100)
-    total_raised = sum(c.get("raised_amount", 0) for c in campaigns)
-    total_fee = round(total_raised * PLATFORM_FEE_PERCENT / 100, 2)
-    total_backers = sum(c.get("backers_count", 0) for c in campaigns)
-    active_campaigns = sum(1 for c in campaigns if c.get("is_active"))
-    
+    products = await db.products.find({}, {"_id": 0}).to_list(100)
     transactions = await db.payment_transactions.find({}, {"_id": 0}).to_list(1000)
     
+    total_raised_campaigns = sum(c.get("raised_amount", 0) for c in campaigns)
+    total_product_sales = sum(t["amount"] for t in transactions if t.get("type") == "product" and t.get("payment_status") == "paid")
+    total_revenue = total_raised_campaigns + total_product_sales
+    total_fee = round(total_revenue * PLATFORM_FEE_PERCENT / 100, 2)
+    total_backers = sum(c.get("backers_count", 0) for c in campaigns)
+    active_campaigns = sum(1 for c in campaigns if c.get("is_active"))
+    active_products = sum(1 for p in products if p.get("is_active"))
+    
     return {
-        "total_raised": total_raised,
+        "total_raised": total_revenue,
+        "total_raised_campaigns": total_raised_campaigns,
+        "total_product_sales": total_product_sales,
         "platform_fee_total": total_fee,
         "total_backers": total_backers,
         "active_campaigns": active_campaigns,
+        "active_products": active_products,
         "max_campaigns": MAX_CAMPAIGNS,
+        "max_products": MAX_PRODUCTS,
         "transactions": transactions
     }
 
@@ -353,43 +535,36 @@ async def subscribe_newsletter(data: NewsletterSubscribe):
     email = data.email.lower().strip()
     existing = await db.newsletter.find_one({"email": email})
     if existing:
-        return {"message": "Already subscribed"}
+        return {"message": "Ja inscrito"}
     await db.newsletter.insert_one({
-        "id": str(uuid.uuid4()),
-        "email": email,
+        "id": str(uuid.uuid4()), "email": email,
         "subscribed_at": datetime.now(timezone.utc).isoformat()
     })
-    return {"message": "Subscribed successfully"}
+    return {"message": "Inscrito com sucesso!"}
 
 @api_router.get("/newsletter/subscribers")
-async def get_subscribers(user=Depends(get_current_user)):
+async def get_subscribers(user=Depends(require_admin)):
     subs = await db.newsletter.find({}, {"_id": 0}).to_list(1000)
     return subs
 
 # ─── Gallery ───
 @api_router.get("/gallery")
 async def get_gallery():
-    items = await db.gallery.find({}, {"_id": 0}).to_list(100)
-    return items
+    return await db.gallery.find({}, {"_id": 0}).to_list(100)
 
 @api_router.post("/gallery")
-async def add_gallery_item(data: GalleryItemCreate, user=Depends(get_current_user)):
-    item = {
-        "id": str(uuid.uuid4()),
-        "image_url": data.image_url,
-        "caption": data.caption,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
+async def add_gallery_item(data: GalleryItemCreate, user=Depends(require_admin)):
+    item = {"id": str(uuid.uuid4()), "image_url": data.image_url, "caption": data.caption, "created_at": datetime.now(timezone.utc).isoformat()}
     await db.gallery.insert_one(item)
     item.pop("_id", None)
     return item
 
 @api_router.delete("/gallery/{item_id}")
-async def delete_gallery_item(item_id: str, user=Depends(get_current_user)):
+async def delete_gallery_item(item_id: str, user=Depends(require_admin)):
     result = await db.gallery.delete_one({"id": item_id})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Gallery item not found")
-    return {"message": "Deleted"}
+        raise HTTPException(status_code=404, detail="Item nao encontrado")
+    return {"message": "Excluido"}
 
 # ─── Biography ───
 @api_router.get("/bio")
@@ -400,26 +575,24 @@ async def get_bio():
     return {"content": bio.get("content", ""), "photo_url": bio.get("photo_url", "")}
 
 @api_router.put("/bio")
-async def update_bio(data: BioUpdate, user=Depends(get_current_user)):
+async def update_bio(data: BioUpdate, user=Depends(require_admin)):
     await db.site_settings.update_one(
         {"key": "biography"},
         {"$set": {"key": "biography", "content": data.content, "photo_url": data.photo_url}},
         upsert=True
     )
-    return {"message": "Biography updated"}
+    return {"message": "Biografia atualizada"}
 
 # ─── Seed Admin & Startup ───
 async def seed_admin():
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@edegar.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "Edegar2026!")
+    admin_email = os.environ.get("ADMIN_EMAIL", "mateusbpugli@gmail.com")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "Mateus Buarque 1101")
     existing = await db.users.find_one({"email": admin_email})
     if existing is None:
         hashed = hash_password(admin_password)
         await db.users.insert_one({
-            "email": admin_email,
-            "password_hash": hashed,
-            "name": "Edegar Agostinho",
-            "role": "admin",
+            "email": admin_email, "password_hash": hashed,
+            "name": "Edegar Agostinho", "role": "admin", "phone": "",
             "created_at": datetime.now(timezone.utc).isoformat()
         })
         logger.info(f"Admin seeded: {admin_email}")
@@ -430,7 +603,6 @@ async def seed_admin():
         )
         logger.info("Admin password updated")
 
-    # Seed default bio
     bio = await db.site_settings.find_one({"key": "biography"})
     if not bio:
         await db.site_settings.insert_one({
@@ -439,15 +611,13 @@ async def seed_admin():
             "photo_url": "https://images.unsplash.com/photo-1607207355078-b66a28c30db2?w=600"
         })
 
-    # Seed default gallery
     gallery_count = await db.gallery.count_documents({})
     if gallery_count == 0:
-        gallery_items = [
+        await db.gallery.insert_many([
             {"id": str(uuid.uuid4()), "image_url": "https://images.unsplash.com/photo-1713552565611-617645f853b4?w=600", "caption": "Show de stand-up", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": str(uuid.uuid4()), "image_url": "https://images.unsplash.com/photo-1607207355078-b66a28c30db2?w=600", "caption": "Performance ao vivo", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": str(uuid.uuid4()), "image_url": "https://images.unsplash.com/photo-1770392735602-e22dff1b8fb8?w=600", "caption": "Bastidores", "created_at": datetime.now(timezone.utc).isoformat()},
-        ]
-        await db.gallery.insert_many(gallery_items)
+        ])
 
 @app.on_event("startup")
 async def startup():

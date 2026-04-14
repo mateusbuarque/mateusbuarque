@@ -5,9 +5,11 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import CampaignDetail from "./pages/CampaignDetail";
+import LoginPage from "./pages/LoginPage";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import PaymentSuccess from "./pages/PaymentSuccess";
+import StorePage from "./pages/StorePage";
 
 function App() {
   return (
@@ -19,6 +21,8 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/campaign/:id" element={<CampaignDetail />} />
+              <Route path="/loja" element={<StorePage />} />
+              <Route path="/login" element={<LoginPage />} />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/payment/success" element={<PaymentSuccess />} />

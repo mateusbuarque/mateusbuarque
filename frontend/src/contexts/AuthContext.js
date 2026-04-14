@@ -25,8 +25,12 @@ export function AuthProvider({ children }) {
     setUser(false);
   };
 
+  const setUserDirect = (userData) => {
+    setUser(userData);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, setUserDirect }}>
       {children}
     </AuthContext.Provider>
   );

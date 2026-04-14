@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { campaignAPI, checkoutAPI } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 import { Calendar, Users, Target, ArrowLeft, Truck } from "lucide-react";
 
 export default function CampaignDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(null);
-  const [backerName, setBackerName] = useState("");
-  const [backerEmail, setBackerEmail] = useState("");
 
   useEffect(() => {
     campaignAPI.getOne(id)
@@ -19,20 +20,23 @@ export default function CampaignDetail() {
   }, [id]);
 
   const handleSupport = async (tier) => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
     setCheckoutLoading(tier.id);
     try {
-      const res = await checkoutAPI.create({
+      const res = await checkoutAPI.campaign({
         campaign_id: campaign.id,
         tier_id: tier.id,
-        backer_name: backerName,
-        backer_email: backerEmail,
       });
       if (res.data.url) {
         window.location.href = res.data.url;
       }
     } catch (err) {
       console.error("Checkout error:", err);
-      alert("Erro ao processar pagamento. Tente novamente.");
+      const msg = err.response?.data?.detail || "Erro ao processar pagamento. Tente novamente.";
+      alert(msg);
     } finally {
       setCheckoutLoading(null);
     }
@@ -147,28 +151,17 @@ export default function CampaignDetail() {
                 </div>
               </div>
 
-              {/* Backer info */}
-              <div className="brutalist-card p-6">
-                <h4 className="font-['Outfit'] font-bold text-sm uppercase mb-4">Seus dados</h4>
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Seu nome"
-                    value={backerName}
-                    onChange={(e) => setBackerName(e.target.value)}
-                    className="brutalist-input text-sm"
-                    data-testid="backer-name-input"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Seu email"
-                    value={backerEmail}
-                    onChange={(e) => setBackerEmail(e.target.value)}
-                    className="brutalist-input text-sm"
-                    data-testid="backer-email-input"
-                  />
+              {/* Login prompt */}
+              {!user && (
+                <div className="brutalist-card p-6 bg-[#FFDE00]">
+                  <p className="font-bold text-sm text-zinc-950 uppercase mb-3">
+                    Faca login para apoiar esta campanha
+                  </p>
+                  <Link to="/login" className="brutalist-btn-dark inline-block text-sm" data-testid="campaign-login-btn">
+                    Entrar / Cadastrar
+                  </Link>
                 </div>
-              </div>
+              )}
 
               {/* Tiers */}
               <h4 className="font-['Outfit'] font-bold text-sm uppercase tracking-wider">Recompensas</h4>

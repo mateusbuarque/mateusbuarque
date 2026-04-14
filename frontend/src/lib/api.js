@@ -10,6 +10,7 @@ const api = axios.create({
 
 export const authAPI = {
   login: (email, password) => api.post("/auth/login", { email, password }),
+  register: (data) => api.post("/auth/register", data),
   logout: () => api.post("/auth/logout"),
   me: () => api.get("/auth/me"),
 };
@@ -22,8 +23,17 @@ export const campaignAPI = {
   delete: (id) => api.delete(`/campaigns/${id}`),
 };
 
+export const productAPI = {
+  getAll: () => api.get("/products"),
+  getOne: (id) => api.get(`/products/${id}`),
+  create: (data) => api.post("/products", data),
+  update: (id, data) => api.put(`/products/${id}`, data),
+  delete: (id) => api.delete(`/products/${id}`),
+};
+
 export const checkoutAPI = {
-  create: (data) => api.post("/checkout", { ...data, origin_url: window.location.origin }),
+  campaign: (data) => api.post("/checkout/campaign", { ...data, origin_url: window.location.origin }),
+  product: (data) => api.post("/checkout/product", { ...data, origin_url: window.location.origin }),
   status: (sessionId) => api.get(`/checkout/status/${sessionId}`),
 };
 

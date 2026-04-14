@@ -17,6 +17,7 @@ export default function Footer() {
             </h4>
             <div className="flex flex-col gap-2">
               <a href="/#campanhas" className="text-zinc-400 hover:text-white text-sm transition-colors">Campanhas</a>
+              <a href="/loja" className="text-zinc-400 hover:text-white text-sm transition-colors">Loja</a>
               <a href="/#biografia" className="text-zinc-400 hover:text-white text-sm transition-colors">Biografia</a>
               <a href="/#galeria" className="text-zinc-400 hover:text-white text-sm transition-colors">Galeria</a>
             </div>
@@ -25,9 +26,15 @@ export default function Footer() {
             <h4 className="font-['Outfit'] font-bold text-sm uppercase tracking-wider mb-4 text-[#FFDE00]">
               Plataforma
             </h4>
-            <p className="text-zinc-400 text-sm">
+            <p className="text-zinc-400 text-sm mb-3">
               Taxa de 5% sobre o valor arrecadado. Produto entregue ao comprador mesmo que fature R$0.
             </p>
+            <h4 className="font-['Outfit'] font-bold text-sm uppercase tracking-wider mb-2 text-[#FFDE00] mt-4">
+              Suporte
+            </h4>
+            <a href="mailto:mateusbuarquepugli@gmail.com" className="text-zinc-400 hover:text-white text-sm transition-colors">
+              mateusbuarquepugli@gmail.com
+            </a>
           </div>
         </div>
         <div className="border-t border-zinc-800 mt-8 pt-8 text-center text-zinc-500 text-sm">
