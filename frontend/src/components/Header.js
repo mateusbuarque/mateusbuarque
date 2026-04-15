@@ -47,7 +47,10 @@ export default function Header() {
   return (
     <header data-testid="main-header" className="sticky top-0 z-50 backdrop-blur-xl bg-white/90 border-b-2" style={{ borderColor: settings.secondary_color }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-        <Link to="/" className="font-['Outfit'] font-black text-xl sm:text-2xl uppercase tracking-tight" style={{ color: settings.text_color }}>
+        <Link to="/" className="font-['Outfit'] font-black text-xl sm:text-2xl uppercase tracking-tight flex items-center gap-2" style={{ color: settings.text_color }}>
+          {settings.header_icon_url && (
+            <img src={settings.header_icon_url} alt="" className="h-8 w-8 object-contain" />
+          )}
           {settings.logo_url ? (
             <img src={settings.logo_url} alt={settings.site_name} className="h-10" />
           ) : (

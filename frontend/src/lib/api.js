@@ -54,6 +54,12 @@ export const galleryAPI = {
   delete: (id) => api.delete(`/gallery/${id}`),
 };
 
+export const showcaseAPI = {
+  getAll: () => api.get("/showcase"),
+  add: (data) => api.post("/showcase", data),
+  delete: (id) => api.delete(`/showcase/${id}`),
+};
+
 export const uploadAPI = {
   upload: (file) => {
     const formData = new FormData();

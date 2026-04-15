@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import CampaignCard from "../components/CampaignCard";
 import Marquee from "../components/Marquee";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { campaignAPI, bioAPI, galleryAPI, newsletterAPI } from "../lib/api";
+import { campaignAPI, bioAPI, galleryAPI, newsletterAPI, showcaseAPI } from "../lib/api";
 import { ArrowRight, BookOpen, Users, Target } from "lucide-react";
 
 export default function Home() {
@@ -11,6 +11,7 @@ export default function Home() {
   const [campaigns, setCampaigns] = useState([]);
   const [bio, setBio] = useState({ content: "", photo_url: "" });
   const [gallery, setGallery] = useState([]);
+  const [showcase, setShowcase] = useState([]);
   const [email, setEmail] = useState("");
   const [subMsg, setSubMsg] = useState("");
   const [loading, setLoading] = useState(true);
@@ -20,10 +21,12 @@ export default function Home() {
       campaignAPI.getAll(),
       bioAPI.get(),
       galleryAPI.getAll(),
-    ]).then(([campRes, bioRes, galRes]) => {
+      showcaseAPI.getAll(),
+    ]).then(([campRes, bioRes, galRes, showRes]) => {
       setCampaigns(campRes.data);
       setBio(bioRes.data);
       setGallery(galRes.data);
+      setShowcase(showRes.data);
     }).catch(console.error)
     .finally(() => setLoading(false));
   }, []);
@@ -150,11 +153,45 @@ export default function Home() {
       {/* MARQUEE */}
       <Marquee />
 
+      {/* SHOWCASE / VITRINE */}
+      {showcase.length > 0 && (
+        <section className="py-16 md:py-24 bg-zinc-50" data-testid="showcase-section">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-12" style={{ color: settings.heading_color }}>
+              Projetos & Produtos
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {showcase.map((item, i) => (
+                <a
+                  key={item.id}
+                  href={item.link || "#"}
+                  className="brutalist-card overflow-hidden group block"
+                  data-testid={`showcase-item-${i}`}
+                >
+                  <div className="aspect-square overflow-hidden border-b-2 border-zinc-950">
+                    <img
+                      src={item.image_url}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
+                  </div>
+                  {item.title && (
+                    <div className="p-3">
+                      <p className="font-bold text-sm text-center truncate" style={{ color: settings.text_color }}>{item.title}</p>
+                    </div>
+                  )}
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* CAMPAIGNS */}
       <section id="campanhas" className="py-24 md:py-32" data-testid="campaigns-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-12 text-zinc-950">
-            Campanhas
+          <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-12" style={{ color: settings.heading_color }}>
+            {settings.nav_label_campaigns || "Campanhas"}
           </h2>
           {activeCampaigns.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -176,8 +213,8 @@ export default function Home() {
       {/* BIOGRAPHY */}
       <section id="biografia" className="py-24 md:py-32 bg-zinc-50" data-testid="biography-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-12 text-zinc-950">
-            Biografia
+          <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-12" style={{ color: settings.heading_color }}>
+            {settings.nav_label_bio || "Biografia"}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
             <div className="md:col-span-4">
@@ -203,8 +240,8 @@ export default function Home() {
       {/* GALLERY */}
       <section id="galeria" className="py-24 md:py-32" data-testid="gallery-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-12 text-zinc-950">
-            Galeria
+          <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-12" style={{ color: settings.heading_color }}>
+            {settings.nav_label_gallery || "Galeria"}
           </h2>
           {gallery.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">

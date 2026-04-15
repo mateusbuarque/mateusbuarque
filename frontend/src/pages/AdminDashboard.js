@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio } from "lucide-react";
+import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI } from "../lib/api";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles } from "lucide-react";
 import ImageUpload from "../components/ImageUpload";
 import AdminLivePanel from "../components/AdminLivePanel";
 
@@ -19,6 +19,7 @@ export default function AdminDashboard() {
   const [bio, setBio] = useState({ content: "", photo_url: "" });
   const [subscribers, setSubscribers] = useState([]);
   const [siteConfig, setSiteConfig] = useState({});
+  const [showcaseItems, setShowcaseItems] = useState([]);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
@@ -36,10 +37,10 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes] = await Promise.all([
+      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes] = await Promise.all([
         campaignAPI.getAll(), productAPI.getAll(), adminAPI.stats(),
         galleryAPI.getAll(), bioAPI.get(), newsletterAPI.getSubscribers(),
-        siteSettingsAPI.get(),
+        siteSettingsAPI.get(), showcaseAPI.getAll(),
       ]);
       setCampaigns(campRes.data);
       setProducts(prodRes.data);
@@ -48,6 +49,7 @@ export default function AdminDashboard() {
       setBio(bioRes.data);
       setSubscribers(subRes.data);
       setSiteConfig(settRes.data);
+      setShowcaseItems(showRes.data);
     } catch (err) { console.error(err); }
   };
 
@@ -81,6 +83,7 @@ export default function AdminDashboard() {
     { id: "campaigns", label: "Campanhas", icon: <BarChart3 size={16} /> },
     { id: "products", label: "Loja", icon: <ShoppingBag size={16} /> },
     { id: "live", label: "Live", icon: <Radio size={16} /> },
+    { id: "showcase", label: "Vitrine", icon: <Sparkles size={16} /> },
     { id: "gallery", label: "Galeria", icon: <Image size={16} /> },
     { id: "bio", label: "Biografia", icon: <FileText size={16} /> },
     { id: "subscribers", label: "Newsletter", icon: <Mail size={16} /> },
@@ -249,6 +252,9 @@ export default function AdminDashboard() {
 
         {/* Live Tab */}
         {tab === "live" && <AdminLivePanel />}
+
+        {/* Showcase Tab */}
+        {tab === "showcase" && <ShowcaseTab items={showcaseItems} onRefresh={loadData} />}
 
         {/* Products Tab */}
         {tab === "products" && (
@@ -587,6 +593,10 @@ function SiteSettingsTab({ config, onSave }) {
     btn_label_support: config?.btn_label_support || "Apoiar",
     btn_label_buy_card: config?.btn_label_buy_card || "Pagar com Cartao",
     btn_label_buy_pix: config?.btn_label_buy_pix || "Pagar com Pix",
+    header_icon_url: config?.header_icon_url || "",
+    heading_color: config?.heading_color || "#09090B",
+    subtitle_color: config?.subtitle_color || "#52525B",
+    link_color: config?.link_color || "#3F3F46",
   });
   const [saving, setSaving] = useState(false);
 
@@ -609,7 +619,10 @@ function SiteSettingsTab({ config, onSave }) {
     { key: "secondary_color", label: "Cor Secundaria (fundo escuro)" },
     { key: "accent_color", label: "Cor Acentuada" },
     { key: "bg_color", label: "Cor de Fundo do Site" },
-    { key: "text_color", label: "Cor do Texto" },
+    { key: "text_color", label: "Cor Geral do Texto" },
+    { key: "heading_color", label: "Cor dos Titulos" },
+    { key: "subtitle_color", label: "Cor dos Subtitulos" },
+    { key: "link_color", label: "Cor dos Links" },
     { key: "btn_color", label: "Cor dos Botoes" },
     { key: "btn_text_color", label: "Cor do Texto dos Botoes" },
   ];
@@ -632,6 +645,9 @@ function SiteSettingsTab({ config, onSave }) {
           <div>
             <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">URL do Logo (deixe vazio para texto)</label>
             <input type="text" value={form.logo_url} onChange={(e) => setForm({ ...form, logo_url: e.target.value })} className="brutalist-input" placeholder="https://..." data-testid="settings-logo-url" />
+          </div>
+          <div>
+            <ImageUpload value={form.header_icon_url} onChange={(url) => setForm({ ...form, header_icon_url: url })} label="Icone ao lado do nome (canto superior esquerdo)" />
           </div>
           <div>
             <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Email de Suporte</label>
@@ -960,6 +976,58 @@ function BalanceTab() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+function ShowcaseTab({ items, onRefresh }) {
+  const [imageUrl, setImageUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [link, setLink] = useState("");
+
+  const handleAdd = async () => {
+    if (!imageUrl) return;
+    await showcaseAPI.add({ image_url: imageUrl, title, link, order: items.length });
+    setImageUrl(""); setTitle(""); setLink("");
+    onRefresh();
+  };
+
+  const handleDelete = async (id) => {
+    await showcaseAPI.delete(id);
+    onRefresh();
+  };
+
+  return (
+    <div data-testid="showcase-tab">
+      <div className="brutalist-card p-6 mb-6">
+        <h3 className="font-bold text-sm uppercase mb-4">Adicionar a Vitrine (aparece na Home)</h3>
+        <div className="space-y-3">
+          <ImageUpload value={imageUrl} onChange={setImageUrl} label="Imagem do projeto/produto" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input type="text" placeholder="Titulo (opcional)" value={title} onChange={(e) => setTitle(e.target.value)} className="brutalist-input text-sm" data-testid="showcase-title-input" />
+            <input type="text" placeholder="Link (ex: /campaign/xxx ou /loja)" value={link} onChange={(e) => setLink(e.target.value)} className="brutalist-input text-sm" data-testid="showcase-link-input" />
+          </div>
+          <button onClick={handleAdd} className="brutalist-btn text-sm" disabled={!imageUrl} data-testid="showcase-add-btn">
+            <Plus size={14} className="inline mr-1" /> Adicionar a Vitrine
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        {items.map((item) => (
+          <div key={item.id} className="brutalist-card overflow-hidden">
+            <div className="aspect-square overflow-hidden border-b-2 border-zinc-950">
+              <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
+            </div>
+            <div className="p-3 flex items-center justify-between">
+              <p className="text-xs font-bold truncate flex-1">{item.title || "Sem titulo"}</p>
+              <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"><Trash2 size={12} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {items.length === 0 && <div className="brutalist-card p-8 text-center"><p className="text-zinc-500 font-bold uppercase text-sm">Vitrine vazia. Adicione imagens de seus projetos e produtos!</p></div>}
     </div>
   );
 }

@@ -33,6 +33,11 @@ const DEFAULTS = {
   btn_label_support: "Apoiar",
   btn_label_buy_card: "Pagar com Cartao",
   btn_label_buy_pix: "Pagar com Pix",
+  header_icon_url: "",
+  heading_color: "#09090B",
+  subtitle_color: "#52525B",
+  link_color: "#3F3F46",
+  showcase_images: [],
 };
 
 export function SiteSettingsProvider({ children }) {
@@ -62,6 +67,9 @@ export function SiteSettingsProvider({ children }) {
     root.style.setProperty("--site-text", settings.text_color);
     root.style.setProperty("--site-btn", settings.btn_color);
     root.style.setProperty("--site-btn-text", settings.btn_text_color);
+    root.style.setProperty("--site-heading", settings.heading_color);
+    root.style.setProperty("--site-subtitle", settings.subtitle_color);
+    root.style.setProperty("--site-link", settings.link_color);
   }, [settings, loaded]);
 
   return (

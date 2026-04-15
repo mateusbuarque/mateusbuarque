@@ -296,6 +296,11 @@ class SiteSettingsUpdate(BaseModel):
     btn_label_support: Optional[str] = None
     btn_label_buy_card: Optional[str] = None
     btn_label_buy_pix: Optional[str] = None
+    header_icon_url: Optional[str] = None
+    heading_color: Optional[str] = None
+    subtitle_color: Optional[str] = None
+    link_color: Optional[str] = None
+    showcase_images: Optional[list] = None
 
 class WithdrawRequest(BaseModel):
     amount: float
@@ -331,7 +336,12 @@ DEFAULT_SITE_SETTINGS = {
     "btn_label_hero_secondary": "Sobre Edegar",
     "btn_label_support": "Apoiar",
     "btn_label_buy_card": "Pagar com Cartao",
-    "btn_label_buy_pix": "Pagar com Pix"
+    "btn_label_buy_pix": "Pagar com Pix",
+    "header_icon_url": "",
+    "heading_color": "#09090B",
+    "subtitle_color": "#52525B",
+    "link_color": "#3F3F46",
+    "showcase_images": []
 }
 
 # ─── Auth Routes ───
@@ -858,6 +868,34 @@ async def request_withdrawal(data: WithdrawRequest, user=Depends(require_admin))
     
     logger.info(f"Withdrawal completed: R$ {data.amount:.2f} to Pix {data.pix_key_type}: {data.pix_key}")
     return {"message": f"Saque de R$ {data.amount:.2f} realizado com sucesso!", "withdrawal": withdrawal}
+
+# ─── Showcase (Vitrine) ───
+@api_router.get("/showcase")
+async def get_showcase():
+    items = await db.showcase.find({}, {"_id": 0}).sort("order", 1).to_list(50)
+    return items
+
+@api_router.post("/showcase")
+async def add_showcase_item(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    item = {
+        "id": str(uuid.uuid4()),
+        "image_url": body.get("image_url", ""),
+        "title": body.get("title", ""),
+        "link": body.get("link", ""),
+        "order": body.get("order", 0),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.showcase.insert_one(item)
+    item.pop("_id", None)
+    return item
+
+@api_router.delete("/showcase/{item_id}")
+async def delete_showcase_item(item_id: str, user=Depends(require_admin)):
+    result = await db.showcase.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item nao encontrado")
+    return {"message": "Excluido"}
 
 # ─── File Upload ───
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
