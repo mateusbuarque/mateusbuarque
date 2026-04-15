@@ -719,12 +719,12 @@ async def update_bio(data: BioUpdate, user=Depends(require_admin)):
 # ─── Seed & Startup ───
 async def seed_admin():
     admin_email = os.environ.get("ADMIN_EMAIL", "mateusbpugli@gmail.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "MateusBuarque1101")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "Mateus Buarque 1101")
     existing = await db.users.find_one({"email": admin_email})
     if existing is None:
         await db.users.insert_one({
             "email": admin_email, "password_hash": hash_password(admin_password),
-            "name": "Edegar Agostinho", "role": "admin", "phone": "",
+            "name": "Mateus Buarque", "role": "admin", "phone": "",
             "created_at": datetime.now(timezone.utc).isoformat()
         })
         logger.info(f"Admin seeded: {admin_email}")
