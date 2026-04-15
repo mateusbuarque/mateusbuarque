@@ -55,6 +55,8 @@ export const bioAPI = {
 
 export const adminAPI = {
   stats: () => api.get("/admin/stats"),
+  balance: () => api.get("/admin/balance"),
+  withdraw: (data) => api.post("/admin/withdraw", data),
 };
 
 export const siteSettingsAPI = {

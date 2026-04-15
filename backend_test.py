@@ -72,12 +72,14 @@ class CrowdfundingAPITester:
             "POST",
             "auth/login",
             200,
-            data={"email": "mateusbpugli@gmail.com", "password": "Mateus Buarque 1101"}
+            data={"email": "mateusbpugli@gmail.com", "password": "MateusBuarque1101"}
         )
         
         if success and 'id' in response:
             # Try to get token from cookies or response
             print("✅ Login successful, admin user found")
+            print(f"   Admin ID: {response.get('id')}")
+            print(f"   Admin Role: {response.get('role')}")
             return True
         return False
 
@@ -325,6 +327,136 @@ class CrowdfundingAPITester:
         
         return success
 
+    def test_admin_balance(self):
+        """Test admin balance endpoint (NEW in iteration 4)"""
+        print("\n" + "="*50)
+        print("TESTING ADMIN BALANCE")
+        print("="*50)
+        
+        success, response = self.run_test(
+            "Get Admin Balance",
+            "GET",
+            "admin/balance",
+            200,
+            auth_required=True
+        )
+        
+        if success and isinstance(response, dict):
+            required_fields = ['total_revenue', 'platform_fee', 'available_balance', 'total_withdrawn', 'withdrawals']
+            missing_fields = [field for field in required_fields if field not in response]
+            if missing_fields:
+                print(f"❌ Missing required fields: {missing_fields}")
+                return False
+            else:
+                print(f"✅ Balance data complete:")
+                print(f"   - Total Revenue: R$ {response.get('total_revenue', 0):.2f}")
+                print(f"   - Platform Fee: R$ {response.get('platform_fee', 0):.2f}")
+                print(f"   - Available Balance: R$ {response.get('available_balance', 0):.2f}")
+                print(f"   - Total Withdrawn: R$ {response.get('total_withdrawn', 0):.2f}")
+                print(f"   - Withdrawals Count: {len(response.get('withdrawals', []))}")
+                return True
+        return False
+
+    def test_withdrawal_validation(self):
+        """Test withdrawal validation (NEW in iteration 4)"""
+        print("\n" + "="*50)
+        print("TESTING WITHDRAWAL VALIDATION")
+        print("="*50)
+        
+        # Test invalid amount (0)
+        success1, response1 = self.run_test(
+            "Withdraw Invalid Amount (0)",
+            "POST",
+            "admin/withdraw",
+            400,
+            data={"amount": 0, "pix_key": "test@example.com", "pix_key_type": "email"},
+            auth_required=True
+        )
+        
+        # Test invalid pix key (too short)
+        success2, response2 = self.run_test(
+            "Withdraw Invalid Pix Key (short)",
+            "POST",
+            "admin/withdraw",
+            400,
+            data={"amount": 10.0, "pix_key": "abc", "pix_key_type": "email"},
+            auth_required=True
+        )
+        
+        # Test amount exceeding balance
+        success3, response3 = self.run_test(
+            "Withdraw Excessive Amount",
+            "POST",
+            "admin/withdraw",
+            400,
+            data={"amount": 999999.0, "pix_key": "test@example.com", "pix_key_type": "email"},
+            auth_required=True
+        )
+        
+        return success1 and success2 and success3
+
+    def test_withdrawal_success(self):
+        """Test successful withdrawal (NEW in iteration 4)"""
+        print("\n" + "="*50)
+        print("TESTING WITHDRAWAL SUCCESS")
+        print("="*50)
+        
+        # First get current balance
+        balance_success, balance_data = self.run_test(
+            "Get Balance Before Withdrawal",
+            "GET",
+            "admin/balance",
+            200,
+            auth_required=True
+        )
+        
+        if not balance_success:
+            print("❌ Could not get balance data")
+            return False
+            
+        available = balance_data.get('available_balance', 0)
+        print(f"Available balance: R$ {available:.2f}")
+        
+        if available <= 0:
+            print("⚠️  No available balance for withdrawal test - this is expected in fresh system")
+            return True  # Not a failure, just no balance
+        
+        # Test small withdrawal with different pix key types
+        pix_types = [
+            {"type": "email", "key": "test@example.com"},
+            {"type": "cpf", "key": "12345678901"},
+            {"type": "phone", "key": "+5511999999999"}
+        ]
+        
+        for pix in pix_types:
+            withdraw_amount = min(0.50, available)  # Small amount
+            success, response = self.run_test(
+                f"Withdraw R$ {withdraw_amount:.2f} via {pix['type']}",
+                "POST",
+                "admin/withdraw",
+                200,
+                data={
+                    "amount": withdraw_amount,
+                    "pix_key": pix['key'],
+                    "pix_key_type": pix['type']
+                },
+                auth_required=True
+            )
+            
+            if success and isinstance(response, dict):
+                if 'message' in response and 'sucesso' in response['message'].lower():
+                    print(f"✅ Withdrawal successful: {response['message']}")
+                    available -= withdraw_amount  # Update available balance
+                    if available <= 0:
+                        break  # Stop if no more balance
+                else:
+                    print(f"❌ Unexpected withdrawal response: {response}")
+                    return False
+            else:
+                return False
+        
+        return True
+
     def test_site_settings(self):
         """Test site settings functionality (NEW in iteration 3)"""
         print("\n" + "="*50)
@@ -482,6 +614,9 @@ def main():
         tester.test_gallery,
         tester.test_biography,
         tester.test_admin_stats,
+        tester.test_admin_balance,      # NEW in iteration 4
+        tester.test_withdrawal_validation,  # NEW in iteration 4
+        tester.test_withdrawal_success,     # NEW in iteration 4
         tester.test_checkout_creation,
     ]
     

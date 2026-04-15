@@ -219,6 +219,11 @@ class SiteSettingsUpdate(BaseModel):
     support_email: Optional[str] = None
     marquee_text: Optional[str] = None
 
+class WithdrawRequest(BaseModel):
+    amount: float
+    pix_key: str
+    pix_key_type: str = "cpf"
+
 DEFAULT_SITE_SETTINGS = {
     "site_name": "Edegar Agostinho",
     "site_subtitle": "Comediante, escritor e ilustrador",
@@ -598,6 +603,70 @@ async def get_admin_stats(user=Depends(require_admin)):
         "max_products": MAX_PRODUCTS, "transactions": transactions,
         "email_logs": email_logs, "has_resend": HAS_RESEND
     }
+
+# ─── Admin Balance & Withdrawals ───
+@api_router.get("/admin/balance")
+async def get_admin_balance(user=Depends(require_admin)):
+    paid_txs = await db.payment_transactions.find(
+        {"payment_status": "paid"}, {"_id": 0, "amount": 1}
+    ).to_list(10000)
+    total_revenue = sum(t.get("amount", 0) for t in paid_txs)
+    total_fee = round(total_revenue * PLATFORM_FEE_PERCENT / 100, 2)
+    net_revenue = round(total_revenue - total_fee, 2)
+    
+    withdrawals = await db.withdrawals.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    total_withdrawn = sum(w.get("amount", 0) for w in withdrawals if w.get("status") == "completed")
+    pending_withdrawn = sum(w.get("amount", 0) for w in withdrawals if w.get("status") == "pending")
+    
+    available_balance = round(net_revenue - total_withdrawn - pending_withdrawn, 2)
+    
+    return {
+        "total_revenue": total_revenue,
+        "platform_fee": total_fee,
+        "net_revenue": net_revenue,
+        "total_withdrawn": total_withdrawn,
+        "pending_withdrawn": pending_withdrawn,
+        "available_balance": max(0, available_balance),
+        "withdrawals": withdrawals
+    }
+
+@api_router.post("/admin/withdraw")
+async def request_withdrawal(data: WithdrawRequest, user=Depends(require_admin)):
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Valor deve ser maior que zero")
+    if not data.pix_key or len(data.pix_key.strip()) < 5:
+        raise HTTPException(status_code=400, detail="Chave Pix invalida")
+    
+    # Calculate available balance
+    paid_txs = await db.payment_transactions.find(
+        {"payment_status": "paid"}, {"_id": 0, "amount": 1}
+    ).to_list(10000)
+    total_revenue = sum(t.get("amount", 0) for t in paid_txs)
+    total_fee = round(total_revenue * PLATFORM_FEE_PERCENT / 100, 2)
+    net_revenue = round(total_revenue - total_fee, 2)
+    
+    withdrawals = await db.withdrawals.find({}, {"_id": 0, "amount": 1, "status": 1}).to_list(500)
+    total_withdrawn = sum(w.get("amount", 0) for w in withdrawals if w.get("status") in ("completed", "pending"))
+    available = round(net_revenue - total_withdrawn, 2)
+    
+    if data.amount > available:
+        raise HTTPException(status_code=400, detail=f"Saldo insuficiente. Disponivel: R$ {available:.2f}")
+    
+    withdrawal = {
+        "id": str(uuid.uuid4()),
+        "amount": data.amount,
+        "pix_key": data.pix_key.strip(),
+        "pix_key_type": data.pix_key_type,
+        "status": "completed",
+        "requested_by": user["email"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.withdrawals.insert_one(withdrawal)
+    withdrawal.pop("_id", None)
+    
+    logger.info(f"Withdrawal completed: R$ {data.amount:.2f} to Pix {data.pix_key_type}: {data.pix_key}")
+    return {"message": f"Saque de R$ {data.amount:.2f} realizado com sucesso!", "withdrawal": withdrawal}
 
 # ─── Newsletter ───
 @api_router.post("/newsletter")

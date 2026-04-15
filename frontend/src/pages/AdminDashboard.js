@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings } from "lucide-react";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine } from "lucide-react";
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -75,6 +75,7 @@ export default function AdminDashboard() {
   if (!user || user.role !== "admin") return null;
 
   const tabs = [
+    { id: "balance", label: "Saldo", icon: <Wallet size={16} /> },
     { id: "campaigns", label: "Campanhas", icon: <BarChart3 size={16} /> },
     { id: "products", label: "Loja", icon: <ShoppingBag size={16} /> },
     { id: "gallery", label: "Galeria", icon: <Image size={16} /> },
@@ -121,6 +122,11 @@ export default function AdminDashboard() {
             </button>
           ))}
         </div>
+
+        {/* Balance Tab */}
+        {tab === "balance" && (
+          <BalanceTab />
+        )}
 
         {/* Campaigns Tab */}
         {tab === "campaigns" && (
@@ -617,6 +623,231 @@ function SiteSettingsTab({ config, onSave }) {
       <button onClick={handleSave} disabled={saving} className="brutalist-btn w-full sm:w-auto" data-testid="settings-save-btn">
         {saving ? "Salvando..." : "Salvar Configuracoes"}
       </button>
+    </div>
+  );
+}
+
+
+function BalanceTab() {
+  const [balance, setBalance] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [withdrawForm, setWithdrawForm] = useState({ amount: "", pix_key: "", pix_key_type: "cpf" });
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const loadBalance = () => {
+    setLoading(true);
+    adminAPI.balance()
+      .then((res) => setBalance(res.data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadBalance(); }, []);
+
+  const handleWithdraw = async () => {
+    setMessage("");
+    if (!withdrawForm.amount || parseFloat(withdrawForm.amount) <= 0) {
+      setMessage("Informe um valor valido");
+      return;
+    }
+    if (!withdrawForm.pix_key || withdrawForm.pix_key.trim().length < 5) {
+      setMessage("Informe uma chave Pix valida");
+      return;
+    }
+    setWithdrawing(true);
+    try {
+      const res = await adminAPI.withdraw({
+        amount: parseFloat(withdrawForm.amount),
+        pix_key: withdrawForm.pix_key,
+        pix_key_type: withdrawForm.pix_key_type,
+      });
+      setMessage(res.data.message);
+      setWithdrawForm({ amount: "", pix_key: "", pix_key_type: "cpf" });
+      setShowWithdraw(false);
+      loadBalance();
+    } catch (err) {
+      setMessage(err.response?.data?.detail || "Erro ao processar saque");
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
+  if (loading || !balance) {
+    return <div className="text-center py-12"><div className="animate-pulse font-bold uppercase">Carregando saldo...</div></div>;
+  }
+
+  const pixKeyTypes = [
+    { value: "cpf", label: "CPF" },
+    { value: "cnpj", label: "CNPJ" },
+    { value: "email", label: "E-mail" },
+    { value: "phone", label: "Telefone" },
+    { value: "random", label: "Chave Aleatoria" },
+  ];
+
+  return (
+    <div className="space-y-6" data-testid="balance-tab">
+      {/* Balance Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="brutalist-card p-6 text-center" style={{ background: "#FFDE00" }}>
+          <div className="text-xs font-bold uppercase text-zinc-700 mb-1">Saldo Disponivel</div>
+          <div className="font-['Outfit'] font-black text-3xl text-zinc-950" data-testid="available-balance">
+            R$ {balance.available_balance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+        <div className="brutalist-card p-6 text-center">
+          <div className="text-xs font-bold uppercase text-zinc-500 mb-1">Receita Total</div>
+          <div className="font-['Outfit'] font-black text-2xl text-zinc-950">
+            R$ {balance.total_revenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+        <div className="brutalist-card p-6 text-center">
+          <div className="text-xs font-bold uppercase text-zinc-500 mb-1">Taxa Plataforma (5%)</div>
+          <div className="font-['Outfit'] font-black text-2xl text-red-600">
+            - R$ {balance.platform_fee.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+        <div className="brutalist-card p-6 text-center">
+          <div className="text-xs font-bold uppercase text-zinc-500 mb-1">Total Sacado</div>
+          <div className="font-['Outfit'] font-black text-2xl text-zinc-950">
+            R$ {balance.total_withdrawn.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+      </div>
+
+      {/* Withdraw Button */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={() => setShowWithdraw(!showWithdraw)}
+          className="brutalist-btn flex items-center gap-2"
+          data-testid="withdraw-btn"
+          disabled={balance.available_balance <= 0}
+        >
+          <ArrowDownToLine size={18} /> Sacar
+        </button>
+        {balance.available_balance <= 0 && (
+          <span className="text-sm text-zinc-500 font-bold">Sem saldo disponivel para saque</span>
+        )}
+      </div>
+
+      {message && (
+        <div className={`p-4 border-2 font-bold text-sm ${message.includes("sucesso") ? "bg-green-50 border-green-500 text-green-800" : "bg-red-50 border-red-500 text-red-800"}`} data-testid="withdraw-message">
+          {message}
+        </div>
+      )}
+
+      {/* Withdraw Form */}
+      {showWithdraw && (
+        <div className="brutalist-card p-6 md:p-8" data-testid="withdraw-form">
+          <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Sacar via Pix</h3>
+          <div className="space-y-4 max-w-lg">
+            <div>
+              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Valor do Saque (R$)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                max={balance.available_balance}
+                value={withdrawForm.amount}
+                onChange={(e) => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
+                className="brutalist-input"
+                placeholder={`Maximo: R$ ${balance.available_balance.toFixed(2)}`}
+                data-testid="withdraw-amount-input"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Tipo de Chave Pix</label>
+              <div className="flex flex-wrap gap-2">
+                {pixKeyTypes.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setWithdrawForm({ ...withdrawForm, pix_key_type: t.value })}
+                    className={`px-4 py-2 border-2 border-zinc-950 font-bold text-xs uppercase transition-all ${
+                      withdrawForm.pix_key_type === t.value ? "bg-zinc-950 text-[#FFDE00]" : "bg-white text-zinc-950 hover:bg-zinc-100"
+                    }`}
+                    data-testid={`pix-type-${t.value}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Sua Chave Pix</label>
+              <input
+                type="text"
+                value={withdrawForm.pix_key}
+                onChange={(e) => setWithdrawForm({ ...withdrawForm, pix_key: e.target.value })}
+                className="brutalist-input"
+                placeholder={
+                  withdrawForm.pix_key_type === "cpf" ? "000.000.000-00" :
+                  withdrawForm.pix_key_type === "cnpj" ? "00.000.000/0000-00" :
+                  withdrawForm.pix_key_type === "email" ? "seu@email.com" :
+                  withdrawForm.pix_key_type === "phone" ? "+5511999999999" :
+                  "Chave aleatoria"
+                }
+                data-testid="withdraw-pix-key-input"
+              />
+            </div>
+            <div className="bg-zinc-50 border-2 border-zinc-300 p-4">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-zinc-600">Valor do saque:</span>
+                <span className="font-bold">R$ {(parseFloat(withdrawForm.amount) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-600">Pix ({pixKeyTypes.find(t => t.value === withdrawForm.pix_key_type)?.label}):</span>
+                <span className="font-bold">{withdrawForm.pix_key || "---"}</span>
+              </div>
+            </div>
+            <button
+              onClick={handleWithdraw}
+              disabled={withdrawing}
+              className="brutalist-btn w-full flex items-center justify-center gap-2"
+              data-testid="confirm-withdraw-btn"
+            >
+              <ArrowDownToLine size={16} />
+              {withdrawing ? "Processando..." : "Confirmar Saque"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Withdrawal History */}
+      {balance.withdrawals && balance.withdrawals.length > 0 && (
+        <div>
+          <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-4">Historico de Saques</h3>
+          <div className="brutalist-card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-zinc-950 text-white">
+                <tr>
+                  <th className="p-3 text-left font-bold uppercase text-xs">Data</th>
+                  <th className="p-3 text-left font-bold uppercase text-xs">Valor</th>
+                  <th className="p-3 text-left font-bold uppercase text-xs">Chave Pix</th>
+                  <th className="p-3 text-left font-bold uppercase text-xs">Tipo</th>
+                  <th className="p-3 text-left font-bold uppercase text-xs">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {balance.withdrawals.map((w) => (
+                  <tr key={w.id} className="border-b-2 border-zinc-100">
+                    <td className="p-3 text-zinc-600">{new Date(w.created_at).toLocaleDateString("pt-BR")} {new Date(w.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td>
+                    <td className="p-3 font-bold text-zinc-950">R$ {(w.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3 text-zinc-700">{w.pix_key}</td>
+                    <td className="p-3 text-zinc-500 uppercase text-xs font-bold">{w.pix_key_type}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-1 text-xs font-bold uppercase ${w.status === "completed" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
+                        {w.status === "completed" ? "Concluido" : "Pendente"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
