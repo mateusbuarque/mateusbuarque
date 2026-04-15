@@ -79,6 +79,19 @@ export const adminAPI = {
   withdraw: (data) => api.post("/admin/withdraw", data),
 };
 
+export const recordingsAPI = {
+  getAll: () => api.get("/recordings"),
+  upload: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post("/recordings/upload", formData, { headers: { "Content-Type": "multipart/form-data" }, timeout: 300000 });
+  },
+  create: (data) => api.post("/recordings", data),
+  toggleVisibility: (id, isPublic) => api.put(`/recordings/${id}/visibility`, { is_public: isPublic }),
+  delete: (id) => api.delete(`/recordings/${id}`),
+  streamUrl: (id) => `${BACKEND_URL}/api/recordings/${id}/stream`,
+};
+
 export const siteSettingsAPI = {
   get: () => api.get("/site-settings"),
   update: (data) => api.put("/site-settings", data),

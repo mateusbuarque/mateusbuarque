@@ -1041,6 +1041,86 @@ async def stop_live(user=Depends(require_admin)):
     live_chat.clear()
     return {"message": "Live encerrada"}
 
+# ─── Recordings ───
+@api_router.post("/recordings/upload")
+async def upload_recording(file: UploadFile = File(...), user=Depends(require_admin)):
+    data = await file.read()
+    if len(data) > 500 * 1024 * 1024:  # 500MB max
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (max 500MB)")
+    file_id = str(uuid.uuid4())
+    ext = "webm"
+    path = f"{APP_NAME}/recordings/{file_id}.{ext}"
+    try:
+        result = await asyncio.to_thread(put_object, path, data, "video/webm")
+    except Exception as e:
+        logger.error(f"Recording upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao salvar gravacao")
+    return {"file_id": file_id, "storage_path": result["path"], "size": result.get("size", len(data))}
+
+@api_router.post("/recordings")
+async def create_recording(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    rec = {
+        "id": str(uuid.uuid4()),
+        "title": body.get("title", "Live gravada"),
+        "file_id": body.get("file_id", ""),
+        "storage_path": body.get("storage_path", ""),
+        "duration": body.get("duration", 0),
+        "size": body.get("size", 0),
+        "is_public": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user["email"]
+    }
+    await db.recordings.insert_one(rec)
+    rec.pop("_id", None)
+    return rec
+
+@api_router.get("/recordings")
+async def get_recordings(request: Request):
+    token = request.cookies.get("access_token")
+    auth_header = request.headers.get("Authorization", "")
+    is_admin = False
+    if token or auth_header:
+        try:
+            t = token or (auth_header[7:] if auth_header.startswith("Bearer ") else "")
+            payload = jwt.decode(t, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+            if payload.get("role") == "admin" or payload.get("type") == "access":
+                u = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+                if u and u.get("role") == "admin":
+                    is_admin = True
+        except Exception:
+            pass
+    if is_admin:
+        recs = await db.recordings.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    else:
+        recs = await db.recordings.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return recs
+
+@api_router.put("/recordings/{rec_id}/visibility")
+async def toggle_recording_visibility(rec_id: str, request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    await db.recordings.update_one({"id": rec_id}, {"$set": {"is_public": body.get("is_public", False)}})
+    return {"message": "Visibilidade atualizada"}
+
+@api_router.delete("/recordings/{rec_id}")
+async def delete_recording(rec_id: str, user=Depends(require_admin)):
+    result = await db.recordings.delete_one({"id": rec_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Gravacao nao encontrada")
+    return {"message": "Gravacao excluida"}
+
+@api_router.get("/recordings/{rec_id}/stream")
+async def stream_recording(rec_id: str):
+    rec = await db.recordings.find_one({"id": rec_id}, {"_id": 0})
+    if not rec:
+        raise HTTPException(status_code=404, detail="Gravacao nao encontrada")
+    try:
+        data, content_type = await asyncio.to_thread(get_object, rec["storage_path"])
+        return Response(content=data, media_type="video/webm")
+    except Exception as e:
+        logger.error(f"Recording stream failed: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao carregar gravacao")
+
 @api_router.post("/live/chat")
 async def send_chat(request: Request, user=Depends(get_current_user)):
     body = await request.json()

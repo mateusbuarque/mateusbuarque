@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import api from "../lib/api";
-import { Radio, Users, MessageCircle, Send } from "lucide-react";
+import { recordingsAPI } from "../lib/api";
+import { Radio, Users, MessageCircle, Send, Play } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const WS_URL = BACKEND_URL.replace("https://", "wss://").replace("http://", "ws://");
@@ -14,6 +15,8 @@ export default function LivePage() {
   const [liveStatus, setLiveStatus] = useState({ is_live: false, title: "", viewer_count: 0 });
   const [chat, setChat] = useState([]);
   const [chatMsg, setChatMsg] = useState("");
+  const [recordings, setRecordings] = useState([]);
+  const [playingRec, setPlayingRec] = useState(null);
   const videoRef = useRef(null);
   const wsRef = useRef(null);
   const mediaSourceRef = useRef(null);
@@ -29,6 +32,11 @@ export default function LivePage() {
     poll();
     const interval = setInterval(poll, 5000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Load recordings
+  useEffect(() => {
+    recordingsAPI.getAll().then(r => setRecordings(r.data)).catch(() => {});
   }, []);
 
   // Load chat
@@ -184,13 +192,64 @@ export default function LivePage() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-            <div className="w-24 h-24 border-2 border-zinc-700 flex items-center justify-center mb-6">
-              <Radio size={40} className="text-zinc-600" />
-            </div>
-            <h1 className="font-['Outfit'] font-black text-3xl text-white uppercase mb-2">Nenhuma live no momento</h1>
-            <p className="text-zinc-500 mb-8">Volte mais tarde ou fique de olho nas redes sociais!</p>
-            <Link to="/" className="brutalist-btn text-sm">Voltar ao Inicio</Link>
+          <div>
+            {/* Playing a recording */}
+            {playingRec && (
+              <div className="mb-8">
+                <h1 className="font-['Outfit'] font-black text-2xl text-white uppercase mb-4">{playingRec.title}</h1>
+                <video
+                  src={recordingsAPI.streamUrl(playingRec.id)}
+                  controls
+                  autoPlay
+                  className="w-full max-w-4xl aspect-video bg-black border-2 border-zinc-800 mx-auto"
+                  data-testid="recording-player"
+                />
+                <p className="text-zinc-500 text-sm mt-2 text-center">{new Date(playingRec.created_at).toLocaleDateString("pt-BR")}</p>
+              </div>
+            )}
+
+            {!playingRec && (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-24 h-24 border-2 border-zinc-700 flex items-center justify-center mb-6">
+                  <Radio size={40} className="text-zinc-600" />
+                </div>
+                <h1 className="font-['Outfit'] font-black text-3xl text-white uppercase mb-2">Nenhuma live no momento</h1>
+                <p className="text-zinc-500 mb-8">Assista as gravacoes anteriores abaixo!</p>
+              </div>
+            )}
+
+            {/* Saved Recordings */}
+            {recordings.length > 0 && (
+              <div className="mt-8">
+                <h2 className="font-['Outfit'] font-black text-xl text-white uppercase mb-6">Gravacoes</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {recordings.map((rec) => (
+                    <button
+                      key={rec.id}
+                      onClick={() => setPlayingRec(rec)}
+                      className={`text-left border-2 p-4 transition-all hover:border-[var(--site-primary,#FFDE00)] ${playingRec?.id === rec.id ? "border-[var(--site-primary,#FFDE00)] bg-zinc-800" : "border-zinc-800 bg-zinc-900"}`}
+                      data-testid={`recording-tile-${rec.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-zinc-800 border border-zinc-700 flex items-center justify-center flex-shrink-0">
+                          <Play size={16} className="text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-white text-sm truncate">{rec.title}</p>
+                          <p className="text-xs text-zinc-500">{new Date(rec.created_at).toLocaleDateString("pt-BR")}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!playingRec && recordings.length === 0 && (
+              <div className="text-center mt-4">
+                <Link to="/" className="brutalist-btn text-sm">Voltar ao Inicio</Link>
+              </div>
+            )}
           </div>
         )}
       </div>
