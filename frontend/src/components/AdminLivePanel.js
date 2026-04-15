@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import api from "../lib/api";
-import { recordingsAPI } from "../lib/api";
+import { recordingsAPI, subscriptionAPI } from "../lib/api";
 import { Radio, VideoOff, Monitor, Camera, Settings2, Download, Eye, EyeOff, Trash2, Play, Upload, Copy, Lock, Unlock } from "lucide-react";
 import VisibilitySelector from "./VisibilitySelector";
 
@@ -15,6 +15,8 @@ export default function AdminLivePanel() {
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
   const [subscribersOnly, setSubscribersOnly] = useState(false);
+  const [allowedPlanIds, setAllowedPlanIds] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [recordings, setRecordings] = useState([]);
   const [saving, setSaving] = useState(false);
   const [downloadReady, setDownloadReady] = useState(null);
@@ -33,6 +35,7 @@ export default function AdminLivePanel() {
       if (videoDevs.length > 0) setSelectedDevice(videoDevs[0].deviceId);
     }).catch(() => {});
     loadRecordings();
+    subscriptionAPI.plans().then(r => setPlans(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -59,7 +62,7 @@ export default function AdminLivePanel() {
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.muted = true; }
 
-      await api.post("/live/start", { title, subscribers_only: subscribersOnly });
+      await api.post("/live/start", { title, subscribers_only: subscribersOnly, allowed_plan_ids: allowedPlanIds });
       setIsLive(true);
       startTimeRef.current = Date.now();
 
@@ -210,6 +213,19 @@ export default function AdminLivePanel() {
                 <input type="checkbox" checked={subscribersOnly} onChange={(e) => setSubscribersOnly(e.target.checked)} className="w-5 h-5 border-2 border-zinc-950" />
                 <span className="font-bold text-sm uppercase flex items-center gap-1"><Lock size={14} /> Apenas para assinantes</span>
               </label>
+              {subscribersOnly && plans.length > 0 && (
+                <div className="border-2 border-amber-300 bg-amber-50 p-3">
+                  <p className="text-xs font-bold uppercase text-amber-700 mb-2">Quais planos podem assistir? (vazio = todos)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {plans.map(p => (
+                      <label key={p.id} className="flex items-center gap-2 px-3 py-1 border-2 cursor-pointer text-xs font-bold uppercase" style={{ borderColor: allowedPlanIds.includes(p.id) ? "#d97706" : "#d4d4d8", background: allowedPlanIds.includes(p.id) ? "#fef3c7" : "#fff" }}>
+                        <input type="checkbox" checked={allowedPlanIds.includes(p.id)} onChange={() => setAllowedPlanIds(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id])} className="w-4 h-4" />
+                        {p.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               <button onClick={startLive} className="brutalist-btn flex items-center gap-2" data-testid="start-live-btn"><Radio size={16} /> Ir ao Vivo</button>
             </div>
           </div>
@@ -296,13 +312,26 @@ export default function AdminLivePanel() {
               onClick={async () => {
                 const newVal = !subscribersOnly;
                 setSubscribersOnly(newVal);
-                try { await api.post("/live/visibility", { subscribers_only: newVal }); } catch {}
+                try { await api.post("/live/visibility", { subscribers_only: newVal, allowed_plan_ids: newVal ? allowedPlanIds : [] }); } catch {}
               }}
               className={`flex items-center gap-2 px-4 py-2 border-2 font-bold text-xs uppercase transition-all ${subscribersOnly ? "border-amber-500 bg-amber-50 text-amber-700" : "border-zinc-300 text-zinc-500"}`}
               data-testid="toggle-live-visibility"
             >
               {subscribersOnly ? <><Lock size={14} /> Apenas Assinantes</> : <><Unlock size={14} /> Publico</>}
             </button>
+            {subscribersOnly && plans.length > 0 && (
+              <div className="flex gap-1 flex-wrap">
+                {plans.map(p => (
+                  <button key={p.id} onClick={async () => {
+                    const newIds = allowedPlanIds.includes(p.id) ? allowedPlanIds.filter(id => id !== p.id) : [...allowedPlanIds, p.id];
+                    setAllowedPlanIds(newIds);
+                    await api.post("/live/visibility", { subscribers_only: true, allowed_plan_ids: newIds });
+                  }} className={`px-2 py-1 border text-xs font-bold uppercase ${allowedPlanIds.includes(p.id) ? "border-amber-500 bg-amber-100 text-amber-800" : "border-zinc-200 text-zinc-400"}`}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
             <span className="text-xs text-zinc-400">Mude a visibilidade durante a live</span>
           </div>
           <h2 className="font-['Outfit'] font-bold text-xl mb-4">{title}</h2>

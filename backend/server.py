@@ -185,13 +185,17 @@ async def get_optional_user(request: Request):
     except Exception:
         return None
 
-async def is_subscriber(user) -> bool:
+async def is_subscriber(user, allowed_plan_ids=None) -> bool:
     if not user:
         return False
     if user.get("role") == "admin":
         return True
     sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"}, {"_id": 0})
-    return sub is not None
+    if not sub:
+        return False
+    if allowed_plan_ids and len(allowed_plan_ids) > 0:
+        return sub.get("plan_id") in allowed_plan_ids
+    return True
 
 # ─── Pydantic Models ───
 class LoginRequest(BaseModel):
@@ -961,18 +965,26 @@ async def create_video(request: Request, user=Depends(require_admin)):
 async def get_videos(request: Request):
     user = await get_optional_user(request)
     is_admin = user and user.get("role") == "admin"
-    sub = await is_subscriber(user)
     if is_admin:
         return await db.videos.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    elif sub:
-        return await db.videos.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    else:
-        return await db.videos.find({"is_public": True, "subscribers_only": {"$ne": True}}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    all_vids = await db.videos.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    result = []
+    for vid in all_vids:
+        if not vid.get("subscribers_only"):
+            result.append(vid)
+        else:
+            allowed = vid.get("allowed_plan_ids", [])
+            if await is_subscriber(user, allowed if allowed else None):
+                result.append(vid)
+            else:
+                vid["locked"] = True
+                result.append(vid)
+    return result
 
 @api_router.put("/videos/{video_id}")
 async def update_video(video_id: str, request: Request, user=Depends(require_admin)):
     body = await request.json()
-    update = {k: v for k, v in body.items() if k in ("title", "description", "thumbnail_url", "is_public", "subscribers_only")}
+    update = {k: v for k, v in body.items() if k in ("title", "description", "thumbnail_url", "is_public", "subscribers_only", "allowed_plan_ids")}
     result = await db.videos.update_one({"id": video_id}, {"$set": update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Video nao encontrado")
@@ -1226,6 +1238,7 @@ live_state = {
     "started_at": None,
     "admin_ws": None,
     "subscribers_only": False,
+    "allowed_plan_ids": [],
 }
 live_viewers: list = []
 live_chat: list = []
@@ -1238,6 +1251,7 @@ async def get_live_status():
         "started_at": live_state["started_at"],
         "viewer_count": len(live_viewers),
         "subscribers_only": live_state["subscribers_only"],
+        "allowed_plan_ids": live_state["allowed_plan_ids"],
     }
 
 @api_router.post("/live/start")
@@ -1247,13 +1261,15 @@ async def start_live(request: Request, user=Depends(require_admin)):
     live_state["title"] = body.get("title", "Live")
     live_state["started_at"] = datetime.now(timezone.utc).isoformat()
     live_state["subscribers_only"] = body.get("subscribers_only", False)
+    live_state["allowed_plan_ids"] = body.get("allowed_plan_ids", [])
     live_chat.clear()
     return {"message": "Live iniciada", "status": live_state}
 
 @api_router.post("/live/visibility")
 async def toggle_live_visibility(request: Request, user=Depends(require_admin)):
     body = await request.json()
-    live_state["subscribers_only"] = body.get("subscribers_only", False)
+    if "subscribers_only" in body: live_state["subscribers_only"] = body["subscribers_only"]
+    if "allowed_plan_ids" in body: live_state["allowed_plan_ids"] = body["allowed_plan_ids"]
     # Notify viewers of visibility change
     for ws in live_viewers[:]:
         try:
@@ -1316,14 +1332,21 @@ async def create_recording(request: Request, user=Depends(require_admin)):
 async def get_recordings(request: Request):
     user = await get_optional_user(request)
     is_admin = user and user.get("role") == "admin"
-    sub = await is_subscriber(user)
     if is_admin:
-        recs = await db.recordings.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    elif sub:
-        recs = await db.recordings.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    else:
-        recs = await db.recordings.find({"is_public": True, "subscribers_only": {"$ne": True}}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    return recs
+        return await db.recordings.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    all_recs = await db.recordings.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    result = []
+    for rec in all_recs:
+        if not rec.get("subscribers_only"):
+            result.append(rec)
+        else:
+            allowed = rec.get("allowed_plan_ids", [])
+            if await is_subscriber(user, allowed if allowed else None):
+                result.append(rec)
+            else:
+                rec["locked"] = True
+                result.append(rec)
+    return result
 
 @api_router.put("/recordings/{rec_id}/visibility")
 async def toggle_recording_visibility(rec_id: str, request: Request, user=Depends(require_admin)):
@@ -1331,6 +1354,7 @@ async def toggle_recording_visibility(rec_id: str, request: Request, user=Depend
     update = {}
     if "is_public" in body: update["is_public"] = body["is_public"]
     if "subscribers_only" in body: update["subscribers_only"] = body["subscribers_only"]
+    if "allowed_plan_ids" in body: update["allowed_plan_ids"] = body["allowed_plan_ids"]
     await db.recordings.update_one({"id": rec_id}, {"$set": update})
     return {"message": "Visibilidade atualizada"}
 
