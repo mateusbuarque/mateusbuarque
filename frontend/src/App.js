@@ -14,6 +14,7 @@ import StorePage from "./pages/StorePage";
 import OrderHistory from "./pages/OrderHistory";
 import LivePage from "./pages/LivePage";
 import VideosPage from "./pages/VideosPage";
+import SubscriptionPage from "./pages/SubscriptionPage";
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
                 <Route path="/meus-pedidos" element={<OrderHistory />} />
               <Route path="/live" element={<LivePage />} />
               <Route path="/videos" element={<VideosPage />} />
+              <Route path="/assinatura" element={<SubscriptionPage />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/payment/success" element={<PaymentSuccess />} />

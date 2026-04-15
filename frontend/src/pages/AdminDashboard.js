@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI, videosAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play } from "lucide-react";
+import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI, videosAPI, subscriptionAPI, liveAPI } from "../lib/api";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play, Crown, Lock } from "lucide-react";
 import ImageUpload from "../components/ImageUpload";
 import AdminLivePanel from "../components/AdminLivePanel";
 
@@ -21,6 +21,8 @@ export default function AdminDashboard() {
   const [siteConfig, setSiteConfig] = useState({});
   const [showcaseItems, setShowcaseItems] = useState([]);
   const [videosList, setVideosList] = useState([]);
+  const [subPlans, setSubPlans] = useState([]);
+  const [allSubs, setAllSubs] = useState([]);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
@@ -38,10 +40,11 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes, vidRes] = await Promise.all([
+      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes, vidRes, plansRes, allSubsRes] = await Promise.all([
         campaignAPI.getAll(), productAPI.getAll(), adminAPI.stats(),
         galleryAPI.getAll(), bioAPI.get(), newsletterAPI.getSubscribers(),
         siteSettingsAPI.get(), showcaseAPI.getAll(), videosAPI.getAll(),
+        subscriptionAPI.plans(), adminAPI.subscriptions(),
       ]);
       setCampaigns(campRes.data);
       setProducts(prodRes.data);
@@ -52,6 +55,8 @@ export default function AdminDashboard() {
       setSiteConfig(settRes.data);
       setShowcaseItems(showRes.data);
       setVideosList(vidRes.data);
+      setSubPlans(plansRes.data);
+      setAllSubs(allSubsRes.data);
     } catch (err) { console.error(err); }
   };
 
@@ -86,6 +91,7 @@ export default function AdminDashboard() {
     { id: "products", label: "Loja", icon: <ShoppingBag size={16} /> },
     { id: "live", label: "Live", icon: <Radio size={16} /> },
     { id: "videos", label: "Videos", icon: <Video size={16} /> },
+    { id: "subscriptions", label: "Assinaturas", icon: <Crown size={16} /> },
     { id: "showcase", label: "Vitrine", icon: <Sparkles size={16} /> },
     { id: "gallery", label: "Galeria", icon: <Image size={16} /> },
     { id: "bio", label: "Biografia", icon: <FileText size={16} /> },
@@ -261,6 +267,9 @@ export default function AdminDashboard() {
 
         {/* Showcase Tab */}
         {tab === "showcase" && <ShowcaseTab items={showcaseItems} onRefresh={loadData} />}
+
+        {/* Subscriptions Tab */}
+        {tab === "subscriptions" && <SubscriptionsTab plans={subPlans} allSubs={allSubs} onRefresh={loadData} />}
 
         {/* Products Tab */}
         {tab === "products" && (
@@ -1171,6 +1180,9 @@ function VideosTab({ videos, onRefresh }) {
               <button onClick={() => toggleVisibility(vid)} className={`flex items-center gap-1 px-3 py-1 border-2 font-bold text-xs uppercase ${vid.is_public ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`} data-testid={`video-vis-${vid.id}`}>
                 {vid.is_public ? <><Eye size={12} /> Publico</> : <><EyeOff size={12} /> Privado</>}
               </button>
+              <button onClick={async () => { await videosAPI.update(vid.id, { subscribers_only: !vid.subscribers_only }); onRefresh(); }} className={`flex items-center gap-1 px-3 py-1 border-2 font-bold text-xs uppercase ${vid.subscribers_only ? "border-amber-500 text-amber-700 bg-amber-50" : "border-zinc-200 text-zinc-400"}`} data-testid={`video-sub-${vid.id}`}>
+                <Lock size={12} /> {vid.subscribers_only ? "Assinantes" : "Todos"}
+              </button>
               <a href={videosAPI.streamUrl(vid.id)} target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" title="Assistir"><Play size={14} /></a>
               <button onClick={() => deleteVideo(vid.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
             </div>
@@ -1186,3 +1198,109 @@ function VideosTab({ videos, onRefresh }) {
     </div>
   );
 }
+
+function SubscriptionsTab({ plans, allSubs, onRefresh }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "", price: "", duration_days: "30" });
+  const [saving, setSaving] = useState(false);
+
+  const handleCreate = async () => {
+    if (!form.name || !form.price) { alert("Preencha nome e preco"); return; }
+    setSaving(true);
+    try {
+      await subscriptionAPI.createPlan(form);
+      setForm({ name: "", description: "", price: "", duration_days: "30" });
+      setShowCreate(false);
+      onRefresh();
+    } catch (err) { alert("Erro ao criar plano"); }
+    finally { setSaving(false); }
+  };
+
+  const deletePlan = async (id) => {
+    if (!window.confirm("Excluir plano?")) return;
+    await subscriptionAPI.deletePlan(id);
+    onRefresh();
+  };
+
+  const toggleActive = async (plan) => {
+    await subscriptionAPI.updatePlan(plan.id, { is_active: !plan.is_active });
+    onRefresh();
+  };
+
+  return (
+    <div data-testid="subscriptions-tab">
+      {/* Plans */}
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase">Planos de Assinatura</h3>
+        <button onClick={() => setShowCreate(!showCreate)} className="brutalist-btn flex items-center gap-2 text-sm" data-testid="create-plan-btn">
+          <Plus size={16} /> Novo Plano
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="brutalist-card p-6 mb-6">
+          <div className="space-y-3 max-w-lg">
+            <input type="text" placeholder="Nome do plano" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="brutalist-input text-sm" data-testid="plan-name-input" />
+            <textarea placeholder="Descricao" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="brutalist-input text-sm min-h-[60px]" />
+            <div className="grid grid-cols-2 gap-3">
+              <input type="number" step="0.01" placeholder="Preco (R$)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="brutalist-input text-sm" data-testid="plan-price-input" />
+              <input type="number" placeholder="Duracao (dias)" value={form.duration_days} onChange={(e) => setForm({ ...form, duration_days: e.target.value })} className="brutalist-input text-sm" />
+            </div>
+            <button onClick={handleCreate} disabled={saving} className="brutalist-btn text-sm" data-testid="save-plan-btn">{saving ? "Salvando..." : "Criar Plano"}</button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3 mb-10">
+        {plans.map((plan) => (
+          <div key={plan.id} className="brutalist-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4" data-testid={`plan-${plan.id}`}>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-zinc-950">{plan.name}</h4>
+              <p className="text-xs text-zinc-500 mt-1">{plan.description}</p>
+            </div>
+            <div className="font-['Outfit'] font-black text-lg">R$ {parseFloat(plan.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}<span className="text-xs text-zinc-500 font-normal">/{plan.duration_days}d</span></div>
+            <div className="flex gap-2">
+              <button onClick={() => toggleActive(plan)} className={`px-3 py-1 border-2 text-xs font-bold uppercase ${plan.is_active ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`}>
+                {plan.is_active ? "Ativo" : "Inativo"}
+              </button>
+              <button onClick={() => deletePlan(plan.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
+            </div>
+          </div>
+        ))}
+        {plans.length === 0 && <div className="brutalist-card p-6 text-center"><p className="text-zinc-500 font-bold uppercase text-sm">Crie seu primeiro plano de assinatura</p></div>}
+      </div>
+
+      {/* Subscribers list */}
+      <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-4">Assinantes ({allSubs.length})</h3>
+      {allSubs.length > 0 ? (
+        <div className="brutalist-card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-zinc-950 text-white">
+              <tr>
+                <th className="p-3 text-left font-bold uppercase text-xs">Nome</th>
+                <th className="p-3 text-left font-bold uppercase text-xs">Email</th>
+                <th className="p-3 text-left font-bold uppercase text-xs">Plano</th>
+                <th className="p-3 text-left font-bold uppercase text-xs">Expira</th>
+                <th className="p-3 text-left font-bold uppercase text-xs">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allSubs.map((s) => (
+                <tr key={s.id} className="border-b-2 border-zinc-100">
+                  <td className="p-3 font-medium">{s.user_name}</td>
+                  <td className="p-3 text-zinc-600">{s.user_email}</td>
+                  <td className="p-3">{s.plan_name}</td>
+                  <td className="p-3 text-zinc-500">{new Date(s.expires_at).toLocaleDateString("pt-BR")}</td>
+                  <td className="p-3"><span className={`px-2 py-1 text-xs font-bold uppercase ${s.status === "active" ? "bg-green-100 text-green-800" : "bg-zinc-100 text-zinc-500"}`}>{s.status === "active" ? "Ativo" : s.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="brutalist-card p-6 text-center"><p className="text-zinc-500 font-bold uppercase text-sm">Nenhum assinante ainda</p></div>
+      )}
+    </div>
+  );
+}
+

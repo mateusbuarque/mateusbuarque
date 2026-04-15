@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import api from "../lib/api";
 import { recordingsAPI } from "../lib/api";
-import { Radio, VideoOff, Monitor, Camera, Settings2, Download, Eye, EyeOff, Trash2, Play, Upload, Copy } from "lucide-react";
+import { Radio, VideoOff, Monitor, Camera, Settings2, Download, Eye, EyeOff, Trash2, Play, Upload, Copy, Lock, Unlock } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const WS_URL = BACKEND_URL.replace("https://", "wss://").replace("http://", "ws://");
@@ -13,6 +13,7 @@ export default function AdminLivePanel() {
   const [sourceType, setSourceType] = useState("camera");
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
+  const [subscribersOnly, setSubscribersOnly] = useState(false);
   const [recordings, setRecordings] = useState([]);
   const [saving, setSaving] = useState(false);
   const [downloadReady, setDownloadReady] = useState(null);
@@ -57,7 +58,7 @@ export default function AdminLivePanel() {
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.muted = true; }
 
-      await api.post("/live/start", { title });
+      await api.post("/live/start", { title, subscribers_only: subscribersOnly });
       setIsLive(true);
       startTimeRef.current = Date.now();
 
@@ -149,7 +150,7 @@ export default function AdminLivePanel() {
   };
 
   const toggleVisibility = async (rec) => {
-    await recordingsAPI.toggleVisibility(rec.id, !rec.is_public);
+    await recordingsAPI.toggleVisibility(rec.id, { is_public: !rec.is_public });
     loadRecordings();
   };
 
@@ -204,6 +205,10 @@ export default function AdminLivePanel() {
               <div className="bg-zinc-50 border-2 border-zinc-300 p-3">
                 <p className="text-xs text-zinc-500 font-bold">A live sera gravada automaticamente. Apos encerrar, voce pode baixar e/ou salvar no site.</p>
               </div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" checked={subscribersOnly} onChange={(e) => setSubscribersOnly(e.target.checked)} className="w-5 h-5 border-2 border-zinc-950" />
+                <span className="font-bold text-sm uppercase flex items-center gap-1"><Lock size={14} /> Apenas para assinantes</span>
+              </label>
               <button onClick={startLive} className="brutalist-btn flex items-center gap-2" data-testid="start-live-btn"><Radio size={16} /> Ir ao Vivo</button>
             </div>
           </div>
@@ -285,6 +290,20 @@ export default function AdminLivePanel() {
               <VideoOff size={14} /> Encerrar Live
             </button>
           </div>
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={async () => {
+                const newVal = !subscribersOnly;
+                setSubscribersOnly(newVal);
+                try { await api.post("/live/visibility", { subscribers_only: newVal }); } catch {}
+              }}
+              className={`flex items-center gap-2 px-4 py-2 border-2 font-bold text-xs uppercase transition-all ${subscribersOnly ? "border-amber-500 bg-amber-50 text-amber-700" : "border-zinc-300 text-zinc-500"}`}
+              data-testid="toggle-live-visibility"
+            >
+              {subscribersOnly ? <><Lock size={14} /> Apenas Assinantes</> : <><Unlock size={14} /> Publico</>}
+            </button>
+            <span className="text-xs text-zinc-400">Mude a visibilidade durante a live</span>
+          </div>
           <h2 className="font-['Outfit'] font-bold text-xl mb-4">{title}</h2>
           <video ref={videoRef} autoPlay playsInline muted className="w-full max-w-2xl aspect-video bg-black border-2 border-zinc-950" data-testid="admin-live-preview" />
           <p className="text-xs text-zinc-400 mt-2">Preview local | Gravacao em andamento</p>
@@ -338,6 +357,12 @@ export default function AdminLivePanel() {
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button onClick={() => toggleVisibility(rec)} className={`flex items-center gap-1 px-3 py-1 border-2 font-bold text-xs uppercase ${rec.is_public ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`} data-testid={`toggle-vis-${rec.id}`}>
                     {rec.is_public ? <><Eye size={12} /> Publico</> : <><EyeOff size={12} /> Privado</>}
+                  </button>
+                  <button onClick={async () => {
+                    await recordingsAPI.toggleVisibility(rec.id, { subscribers_only: !rec.subscribers_only });
+                    loadRecordings();
+                  }} className={`flex items-center gap-1 px-3 py-1 border-2 font-bold text-xs uppercase ${rec.subscribers_only ? "border-amber-500 text-amber-700 bg-amber-50" : "border-zinc-200 text-zinc-400"}`}>
+                    <Lock size={12} /> {rec.subscribers_only ? "Assinantes" : "Todos"}
                   </button>
                   <a href={recordingsAPI.streamUrl(rec.id)} target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" title="Assistir">
                     <Play size={14} />

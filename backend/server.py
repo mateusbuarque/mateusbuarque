@@ -179,6 +179,20 @@ async def require_admin(request: Request) -> dict:
         raise HTTPException(status_code=403, detail="Acesso restrito ao administrador")
     return user
 
+async def get_optional_user(request: Request):
+    try:
+        return await get_current_user(request)
+    except Exception:
+        return None
+
+async def is_subscriber(user) -> bool:
+    if not user:
+        return False
+    if user.get("role") == "admin":
+        return True
+    sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"}, {"_id": 0})
+    return sub is not None
+
 # ─── Pydantic Models ───
 class LoginRequest(BaseModel):
     email: str
@@ -935,6 +949,7 @@ async def create_video(request: Request, user=Depends(require_admin)):
         "content_type": body.get("content_type", "video/mp4"),
         "size": body.get("size", 0),
         "is_public": body.get("is_public", True),
+        "subscribers_only": body.get("subscribers_only", False),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": user["email"]
     }
@@ -944,26 +959,20 @@ async def create_video(request: Request, user=Depends(require_admin)):
 
 @api_router.get("/videos")
 async def get_videos(request: Request):
-    token = request.cookies.get("access_token")
-    auth_header = request.headers.get("Authorization", "")
-    is_admin = False
-    if token or auth_header:
-        try:
-            t = token or (auth_header[7:] if auth_header.startswith("Bearer ") else "")
-            payload = jwt.decode(t, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
-            u = await db.users.find_one({"_id": ObjectId(payload["sub"])})
-            if u and u.get("role") == "admin":
-                is_admin = True
-        except Exception:
-            pass
+    user = await get_optional_user(request)
+    is_admin = user and user.get("role") == "admin"
+    sub = await is_subscriber(user)
     if is_admin:
         return await db.videos.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    return await db.videos.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    elif sub:
+        return await db.videos.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    else:
+        return await db.videos.find({"is_public": True, "subscribers_only": {"$ne": True}}, {"_id": 0}).sort("created_at", -1).to_list(100)
 
 @api_router.put("/videos/{video_id}")
 async def update_video(video_id: str, request: Request, user=Depends(require_admin)):
     body = await request.json()
-    update = {k: v for k, v in body.items() if k in ("title", "description", "thumbnail_url", "is_public")}
+    update = {k: v for k, v in body.items() if k in ("title", "description", "thumbnail_url", "is_public", "subscribers_only")}
     result = await db.videos.update_one({"id": video_id}, {"$set": update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Video nao encontrado")
@@ -1088,12 +1097,135 @@ async def update_bio(data: BioUpdate, user=Depends(require_admin)):
     )
     return {"message": "Biografia atualizada"}
 
+# ─── Subscription Plans ───
+@api_router.get("/subscription-plans")
+async def get_subscription_plans():
+    return await db.subscription_plans.find({}, {"_id": 0}).sort("price", 1).to_list(20)
+
+@api_router.post("/subscription-plans")
+async def create_plan(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    plan = {
+        "id": str(uuid.uuid4()),
+        "name": body.get("name", ""),
+        "description": body.get("description", ""),
+        "price": float(body.get("price", 0)),
+        "duration_days": int(body.get("duration_days", 30)),
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.subscription_plans.insert_one(plan)
+    plan.pop("_id", None)
+    return plan
+
+@api_router.put("/subscription-plans/{plan_id}")
+async def update_plan(plan_id: str, request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    update = {k: v for k, v in body.items() if k in ("name", "description", "price", "duration_days", "is_active")}
+    if "price" in update: update["price"] = float(update["price"])
+    if "duration_days" in update: update["duration_days"] = int(update["duration_days"])
+    await db.subscription_plans.update_one({"id": plan_id}, {"$set": update})
+    return await db.subscription_plans.find_one({"id": plan_id}, {"_id": 0})
+
+@api_router.delete("/subscription-plans/{plan_id}")
+async def delete_plan(plan_id: str, user=Depends(require_admin)):
+    await db.subscription_plans.delete_one({"id": plan_id})
+    return {"message": "Plano excluido"}
+
+# ─── User Subscriptions ───
+@api_router.get("/user/subscription")
+async def get_user_subscription(user=Depends(get_current_user)):
+    sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"}, {"_id": 0})
+    return {"is_subscribed": sub is not None, "subscription": sub}
+
+@api_router.post("/subscribe")
+async def subscribe_to_plan(request: Request, user=Depends(get_current_user)):
+    body = await request.json()
+    plan_id = body.get("plan_id")
+    plan = await db.subscription_plans.find_one({"id": plan_id, "is_active": True}, {"_id": 0})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plano nao encontrado")
+
+    # Check if already subscribed
+    existing = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"})
+    if existing:
+        raise HTTPException(status_code=400, detail="Voce ja possui uma assinatura ativa")
+
+    now = datetime.now(timezone.utc)
+    sub = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["_id"],
+        "user_email": user["email"],
+        "user_name": user.get("name", ""),
+        "plan_id": plan["id"],
+        "plan_name": plan["name"],
+        "amount": plan["price"],
+        "status": "active",
+        "started_at": now.isoformat(),
+        "expires_at": (now + timedelta(days=plan["duration_days"])).isoformat(),
+        "created_at": now.isoformat()
+    }
+    await db.subscriptions.insert_one(sub)
+    sub.pop("_id", None)
+
+    # Record payment
+    tx = {
+        "id": str(uuid.uuid4()), "session_id": f"sub_{sub['id']}", "type": "subscription",
+        "campaign_id": None, "tier_id": None, "product_id": None,
+        "amount": plan["price"], "platform_fee": round(plan["price"] * PLATFORM_FEE_PERCENT / 100, 2),
+        "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
+        "user_name": user.get("name", ""), "payment_status": "awaiting_pix",
+        "payment_method": "pix", "created_at": now.isoformat()
+    }
+    await db.payment_transactions.insert_one(tx)
+
+    return {"message": "Assinatura criada! Faca o pagamento via Pix.", "subscription": sub, "pix_key": PIX_KEY, "pix_key_type": PIX_KEY_TYPE, "amount": plan["price"]}
+
+@api_router.post("/subscribe/card")
+async def subscribe_card(request: Request, user=Depends(get_current_user)):
+    body = await request.json()
+    plan_id = body.get("plan_id")
+    origin_url = body.get("origin_url", "")
+    plan = await db.subscription_plans.find_one({"id": plan_id, "is_active": True}, {"_id": 0})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plano nao encontrado")
+    existing = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"})
+    if existing:
+        raise HTTPException(status_code=400, detail="Voce ja possui uma assinatura ativa")
+
+    api_key = os.environ.get("STRIPE_API_KEY")
+    host_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+    success_url = f"{origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}&type=subscription&plan_id={plan_id}"
+    cancel_url = f"{origin_url}/assinatura"
+    metadata = {"type": "subscription", "plan_id": plan_id, "user_id": user["_id"], "user_email": user["email"]}
+    checkout_request = CheckoutSessionRequest(amount=plan["price"], currency="brl", success_url=success_url, cancel_url=cancel_url, metadata=metadata, payment_methods=["card"])
+    session = await stripe_checkout.create_checkout_session(checkout_request)
+
+    now = datetime.now(timezone.utc)
+    tx = {
+        "id": str(uuid.uuid4()), "session_id": session.session_id, "type": "subscription",
+        "campaign_id": None, "tier_id": None, "product_id": None,
+        "amount": plan["price"], "platform_fee": round(plan["price"] * PLATFORM_FEE_PERCENT / 100, 2),
+        "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
+        "user_name": user.get("name", ""), "payment_status": "pending",
+        "payment_method": "card", "plan_id": plan_id, "created_at": now.isoformat()
+    }
+    await db.payment_transactions.insert_one(tx)
+    return {"url": session.url, "session_id": session.session_id}
+
+@api_router.get("/admin/subscriptions")
+async def get_all_subscriptions(user=Depends(require_admin)):
+    return await db.subscriptions.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
 # ─── Live Streaming ───
 live_state = {
     "is_live": False,
     "title": "",
     "started_at": None,
     "admin_ws": None,
+    "subscribers_only": False,
 }
 live_viewers: list = []
 live_chat: list = []
@@ -1105,6 +1237,7 @@ async def get_live_status():
         "title": live_state["title"],
         "started_at": live_state["started_at"],
         "viewer_count": len(live_viewers),
+        "subscribers_only": live_state["subscribers_only"],
     }
 
 @api_router.post("/live/start")
@@ -1113,8 +1246,21 @@ async def start_live(request: Request, user=Depends(require_admin)):
     live_state["is_live"] = True
     live_state["title"] = body.get("title", "Live")
     live_state["started_at"] = datetime.now(timezone.utc).isoformat()
+    live_state["subscribers_only"] = body.get("subscribers_only", False)
     live_chat.clear()
     return {"message": "Live iniciada", "status": live_state}
+
+@api_router.post("/live/visibility")
+async def toggle_live_visibility(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    live_state["subscribers_only"] = body.get("subscribers_only", False)
+    # Notify viewers of visibility change
+    for ws in live_viewers[:]:
+        try:
+            await ws.send_json({"type": "visibility_changed", "subscribers_only": live_state["subscribers_only"]})
+        except Exception:
+            pass
+    return {"message": "Visibilidade atualizada", "subscribers_only": live_state["subscribers_only"]}
 
 @api_router.post("/live/stop")
 async def stop_live(user=Depends(require_admin)):
@@ -1168,29 +1314,24 @@ async def create_recording(request: Request, user=Depends(require_admin)):
 
 @api_router.get("/recordings")
 async def get_recordings(request: Request):
-    token = request.cookies.get("access_token")
-    auth_header = request.headers.get("Authorization", "")
-    is_admin = False
-    if token or auth_header:
-        try:
-            t = token or (auth_header[7:] if auth_header.startswith("Bearer ") else "")
-            payload = jwt.decode(t, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
-            if payload.get("role") == "admin" or payload.get("type") == "access":
-                u = await db.users.find_one({"_id": ObjectId(payload["sub"])})
-                if u and u.get("role") == "admin":
-                    is_admin = True
-        except Exception:
-            pass
+    user = await get_optional_user(request)
+    is_admin = user and user.get("role") == "admin"
+    sub = await is_subscriber(user)
     if is_admin:
         recs = await db.recordings.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    else:
+    elif sub:
         recs = await db.recordings.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    else:
+        recs = await db.recordings.find({"is_public": True, "subscribers_only": {"$ne": True}}, {"_id": 0}).sort("created_at", -1).to_list(100)
     return recs
 
 @api_router.put("/recordings/{rec_id}/visibility")
 async def toggle_recording_visibility(rec_id: str, request: Request, user=Depends(require_admin)):
     body = await request.json()
-    await db.recordings.update_one({"id": rec_id}, {"$set": {"is_public": body.get("is_public", False)}})
+    update = {}
+    if "is_public" in body: update["is_public"] = body["is_public"]
+    if "subscribers_only" in body: update["subscribers_only"] = body["subscribers_only"]
+    await db.recordings.update_one({"id": rec_id}, {"$set": update})
     return {"message": "Visibilidade atualizada"}
 
 @api_router.delete("/recordings/{rec_id}")

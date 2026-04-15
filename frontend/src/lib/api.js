@@ -90,6 +90,22 @@ export const adminAPI = {
   stats: () => api.get("/admin/stats"),
   balance: () => api.get("/admin/balance"),
   withdraw: (data) => api.post("/admin/withdraw", data),
+  subscriptions: () => api.get("/admin/subscriptions"),
+};
+
+export const subscriptionAPI = {
+  plans: () => api.get("/subscription-plans"),
+  createPlan: (data) => api.post("/subscription-plans", data),
+  updatePlan: (id, data) => api.put(`/subscription-plans/${id}`, data),
+  deletePlan: (id) => api.delete(`/subscription-plans/${id}`),
+  mySubscription: () => api.get("/user/subscription"),
+  subscribePix: (planId) => api.post("/subscribe", { plan_id: planId }),
+  subscribeCard: (planId) => api.post("/subscribe/card", { plan_id: planId, origin_url: window.location.origin }),
+};
+
+export const liveAPI = {
+  status: () => api.get("/live/status"),
+  toggleVisibility: (subscribersOnly) => api.post("/live/visibility", { subscribers_only: subscribersOnly }),
 };
 
 export const recordingsAPI = {
@@ -100,7 +116,7 @@ export const recordingsAPI = {
     return api.post("/recordings/upload", formData, { headers: { "Content-Type": "multipart/form-data" }, timeout: 300000 });
   },
   create: (data) => api.post("/recordings", data),
-  toggleVisibility: (id, isPublic) => api.put(`/recordings/${id}/visibility`, { is_public: isPublic }),
+  toggleVisibility: (id, data) => api.put(`/recordings/${id}/visibility`, data),
   delete: (id) => api.delete(`/recordings/${id}`),
   streamUrl: (id) => `${BACKEND_URL}/api/recordings/${id}/stream`,
 };
