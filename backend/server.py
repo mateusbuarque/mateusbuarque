@@ -382,7 +382,7 @@ async def register(req: RegisterRequest):
     user_id = str(result.inserted_id)
     token = create_access_token(user_id, email, "user")
     response = JSONResponse(content={"id": user_id, "email": email, "name": req.name.strip(), "phone": phone, "role": "user"})
-    response.set_cookie(key="access_token", value=token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
+    response.set_cookie(key="access_token", value=token, httponly=True, secure=True, samesite="none", max_age=86400, path="/")
     return response
 
 @api_router.post("/auth/login")
@@ -393,7 +393,7 @@ async def login(req: LoginRequest):
         raise HTTPException(status_code=401, detail="Email ou senha incorretos")
     token = create_access_token(str(user["_id"]), email, user.get("role", "user"))
     response = JSONResponse(content={"id": str(user["_id"]), "email": user["email"], "name": user.get("name", ""), "phone": user.get("phone", ""), "role": user.get("role", "user")})
-    response.set_cookie(key="access_token", value=token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
+    response.set_cookie(key="access_token", value=token, httponly=True, secure=True, samesite="none", max_age=86400, path="/")
     return response
 
 @api_router.post("/auth/logout")
@@ -1483,7 +1483,7 @@ async def shutdown_db_client():
 app.include_router(api_router)
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_URL", "https://edegar-comedy-store.preview.emergentagent.com")
-cors_origins = [FRONTEND_ORIGIN, "http://localhost:3000", "https://localhost:3000"]
+cors_origins = [FRONTEND_ORIGIN, "http://localhost:3000", "https://localhost:3000", "https://735e33bb-a616-4a6b-b492-6beb21fb6394.preview.emergentagent.com"]
 
 app.add_middleware(
     CORSMiddleware,
