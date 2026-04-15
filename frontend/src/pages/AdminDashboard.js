@@ -6,6 +6,7 @@ import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, s
 import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play, Crown, Lock } from "lucide-react";
 import ImageUpload from "../components/ImageUpload";
 import AdminLivePanel from "../components/AdminLivePanel";
+import VisibilitySelector from "../components/VisibilitySelector";
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -1177,12 +1178,10 @@ function VideosTab({ videos, onRefresh }) {
               {vid.description && <p className="text-xs text-zinc-500 mt-1 truncate">{vid.description}</p>}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => toggleVisibility(vid)} className={`flex items-center gap-1 px-3 py-1 border-2 font-bold text-xs uppercase ${vid.is_public ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`} data-testid={`video-vis-${vid.id}`}>
-                {vid.is_public ? <><Eye size={12} /> Publico</> : <><EyeOff size={12} /> Privado</>}
-              </button>
-              <button onClick={async () => { await videosAPI.update(vid.id, { subscribers_only: !vid.subscribers_only }); onRefresh(); }} className={`flex items-center gap-1 px-3 py-1 border-2 font-bold text-xs uppercase ${vid.subscribers_only ? "border-amber-500 text-amber-700 bg-amber-50" : "border-zinc-200 text-zinc-400"}`} data-testid={`video-sub-${vid.id}`}>
-                <Lock size={12} /> {vid.subscribers_only ? "Assinantes" : "Todos"}
-              </button>
+              <VisibilitySelector
+                value={{ is_public: vid.is_public, subscribers_only: vid.subscribers_only }}
+                onChange={async (vis) => { await videosAPI.update(vid.id, vis); onRefresh(); }}
+              />
               <a href={videosAPI.streamUrl(vid.id)} target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" title="Assistir"><Play size={14} /></a>
               <button onClick={() => deleteVideo(vid.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
             </div>

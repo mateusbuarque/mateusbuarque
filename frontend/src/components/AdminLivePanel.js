@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import api from "../lib/api";
 import { recordingsAPI } from "../lib/api";
 import { Radio, VideoOff, Monitor, Camera, Settings2, Download, Eye, EyeOff, Trash2, Play, Upload, Copy, Lock, Unlock } from "lucide-react";
+import VisibilitySelector from "./VisibilitySelector";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const WS_URL = BACKEND_URL.replace("https://", "wss://").replace("http://", "ws://");
@@ -355,15 +356,10 @@ export default function AdminLivePanel() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={() => toggleVisibility(rec)} className={`flex items-center gap-1 px-3 py-1 border-2 font-bold text-xs uppercase ${rec.is_public ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`} data-testid={`toggle-vis-${rec.id}`}>
-                    {rec.is_public ? <><Eye size={12} /> Publico</> : <><EyeOff size={12} /> Privado</>}
-                  </button>
-                  <button onClick={async () => {
-                    await recordingsAPI.toggleVisibility(rec.id, { subscribers_only: !rec.subscribers_only });
-                    loadRecordings();
-                  }} className={`flex items-center gap-1 px-3 py-1 border-2 font-bold text-xs uppercase ${rec.subscribers_only ? "border-amber-500 text-amber-700 bg-amber-50" : "border-zinc-200 text-zinc-400"}`}>
-                    <Lock size={12} /> {rec.subscribers_only ? "Assinantes" : "Todos"}
-                  </button>
+                  <VisibilitySelector
+                    value={{ is_public: rec.is_public, subscribers_only: rec.subscribers_only }}
+                    onChange={async (vis) => { await recordingsAPI.toggleVisibility(rec.id, vis); loadRecordings(); }}
+                  />
                   <a href={recordingsAPI.streamUrl(rec.id)} target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" title="Assistir">
                     <Play size={14} />
                   </a>
