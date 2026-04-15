@@ -1316,4 +1316,14 @@ async def shutdown_db_client():
     client.close()
 
 app.include_router(api_router)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_URL", "https://edegar-comedy-store.preview.emergentagent.com")
+cors_origins = [FRONTEND_ORIGIN, "http://localhost:3000", "https://localhost:3000"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
