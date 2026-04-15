@@ -301,6 +301,7 @@ class SiteSettingsUpdate(BaseModel):
     subtitle_color: Optional[str] = None
     link_color: Optional[str] = None
     showcase_images: Optional[list] = None
+    custom_domain: Optional[str] = None
 
 class WithdrawRequest(BaseModel):
     amount: float
@@ -341,7 +342,8 @@ DEFAULT_SITE_SETTINGS = {
     "heading_color": "#09090B",
     "subtitle_color": "#52525B",
     "link_color": "#3F3F46",
-    "showcase_images": []
+    "showcase_images": [],
+    "custom_domain": ""
 }
 
 # ─── Auth Routes ───

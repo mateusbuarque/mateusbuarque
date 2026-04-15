@@ -597,6 +597,7 @@ function SiteSettingsTab({ config, onSave }) {
     heading_color: config?.heading_color || "#09090B",
     subtitle_color: config?.subtitle_color || "#52525B",
     link_color: config?.link_color || "#3F3F46",
+    custom_domain: config?.custom_domain || "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -652,6 +653,11 @@ function SiteSettingsTab({ config, onSave }) {
           <div>
             <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Email de Suporte</label>
             <input type="email" value={form.support_email} onChange={(e) => setForm({ ...form, support_email: e.target.value })} className="brutalist-input" data-testid="settings-support-email" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Dominio Customizado</label>
+            <input type="text" value={form.custom_domain} onChange={(e) => setForm({ ...form, custom_domain: e.target.value })} className="brutalist-input" placeholder="https://seudominio.com.br" data-testid="settings-custom-domain" />
+            <p className="text-xs text-zinc-400 mt-1">Para conectar seu dominio: faca deploy do site na Emergent, clique em "Link Domain" e siga as instrucoes. A propagacao DNS leva 5-15 min.</p>
           </div>
         </div>
       </div>
