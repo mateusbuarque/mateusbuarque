@@ -560,10 +560,27 @@ function SiteSettingsTab({ config, onSave }) {
     accent_color: config?.accent_color || "#FF3B30",
     bg_color: config?.bg_color || "#FFFFFF",
     text_color: config?.text_color || "#09090B",
+    btn_color: config?.btn_color || "#FFDE00",
+    btn_text_color: config?.btn_text_color || "#09090B",
     hero_title: config?.hero_title || "",
     hero_subtitle: config?.hero_subtitle || "",
     support_email: config?.support_email || "mateusbuarquepugli@gmail.com",
     marquee_text: config?.marquee_text || "",
+    nav_label_home: config?.nav_label_home || "Inicio",
+    nav_label_campaigns: config?.nav_label_campaigns || "Campanhas",
+    nav_label_store: config?.nav_label_store || "Loja",
+    nav_label_bio: config?.nav_label_bio || "Biografia",
+    nav_label_gallery: config?.nav_label_gallery || "Galeria",
+    nav_url_home: config?.nav_url_home || "/",
+    nav_url_campaigns: config?.nav_url_campaigns || "/#campanhas",
+    nav_url_store: config?.nav_url_store || "/loja",
+    nav_url_bio: config?.nav_url_bio || "/#biografia",
+    nav_url_gallery: config?.nav_url_gallery || "/#galeria",
+    btn_label_hero_primary: config?.btn_label_hero_primary || "Ver Campanhas",
+    btn_label_hero_secondary: config?.btn_label_hero_secondary || "Sobre Edegar",
+    btn_label_support: config?.btn_label_support || "Apoiar",
+    btn_label_buy_card: config?.btn_label_buy_card || "Pagar com Cartao",
+    btn_label_buy_pix: config?.btn_label_buy_pix || "Pagar com Pix",
   });
   const [saving, setSaving] = useState(false);
 
@@ -582,11 +599,13 @@ function SiteSettingsTab({ config, onSave }) {
   };
 
   const colorFields = [
-    { key: "primary_color", label: "Cor Primaria (botoes, destaques)" },
-    { key: "secondary_color", label: "Cor Secundaria (fundo escuro, textos)" },
+    { key: "primary_color", label: "Cor Primaria (destaques)" },
+    { key: "secondary_color", label: "Cor Secundaria (fundo escuro)" },
     { key: "accent_color", label: "Cor Acentuada" },
-    { key: "bg_color", label: "Cor de Fundo" },
+    { key: "bg_color", label: "Cor de Fundo do Site" },
     { key: "text_color", label: "Cor do Texto" },
+    { key: "btn_color", label: "Cor dos Botoes" },
+    { key: "btn_text_color", label: "Cor do Texto dos Botoes" },
   ];
 
   return (
@@ -652,6 +671,57 @@ function SiteSettingsTab({ config, onSave }) {
           <div>
             <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Texto do Marquee (separar com *)</label>
             <input type="text" value={form.marquee_text} onChange={(e) => setForm({ ...form, marquee_text: e.target.value })} className="brutalist-input" data-testid="settings-marquee-text" />
+          </div>
+        </div>
+      </div>
+
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Menu de Navegacao</h3>
+        <p className="text-xs text-zinc-500 mb-4">Mude o nome e URL de cada link do menu</p>
+        <div className="space-y-3">
+          {[
+            { labelKey: "nav_label_home", urlKey: "nav_url_home", name: "Home" },
+            { labelKey: "nav_label_campaigns", urlKey: "nav_url_campaigns", name: "Campanhas" },
+            { labelKey: "nav_label_store", urlKey: "nav_url_store", name: "Loja" },
+            { labelKey: "nav_label_bio", urlKey: "nav_url_bio", name: "Biografia" },
+            { labelKey: "nav_label_gallery", urlKey: "nav_url_gallery", name: "Galeria" },
+          ].map(({ labelKey, urlKey, name }) => (
+            <div key={labelKey} className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold text-xs uppercase tracking-wider text-zinc-500 block mb-1">Nome: {name}</label>
+                <input type="text" value={form[labelKey]} onChange={(e) => setForm({ ...form, [labelKey]: e.target.value })} className="brutalist-input text-sm" />
+              </div>
+              <div>
+                <label className="font-bold text-xs uppercase tracking-wider text-zinc-500 block mb-1">URL</label>
+                <input type="text" value={form[urlKey]} onChange={(e) => setForm({ ...form, [urlKey]: e.target.value })} className="brutalist-input text-sm" placeholder="/ ou /#secao ou https://..." />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Textos dos Botoes</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Botao Hero Principal</label>
+            <input type="text" value={form.btn_label_hero_primary} onChange={(e) => setForm({ ...form, btn_label_hero_primary: e.target.value })} className="brutalist-input text-sm" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Botao Hero Secundario</label>
+            <input type="text" value={form.btn_label_hero_secondary} onChange={(e) => setForm({ ...form, btn_label_hero_secondary: e.target.value })} className="brutalist-input text-sm" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Botao Apoiar (campanhas)</label>
+            <input type="text" value={form.btn_label_support} onChange={(e) => setForm({ ...form, btn_label_support: e.target.value })} className="brutalist-input text-sm" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Botao Pagar Cartao</label>
+            <input type="text" value={form.btn_label_buy_card} onChange={(e) => setForm({ ...form, btn_label_buy_card: e.target.value })} className="brutalist-input text-sm" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Botao Pagar Pix</label>
+            <input type="text" value={form.btn_label_buy_pix} onChange={(e) => setForm({ ...form, btn_label_buy_pix: e.target.value })} className="brutalist-input text-sm" />
           </div>
         </div>
       </div>

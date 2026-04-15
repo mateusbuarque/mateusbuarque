@@ -97,9 +97,9 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Brutalist button */
 .brutalist-btn {
-    background: #FFDE00;
-    color: #09090B;
-    border: 2px solid #09090B;
+    background: var(--site-btn, #FFDE00);
+    color: var(--site-btn-text, #09090B);
+    border: 2px solid var(--site-secondary, #09090B);
     padding: 12px 32px;
     font-family: 'Outfit', sans-serif;
     font-weight: 900;

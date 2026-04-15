@@ -11,11 +11,11 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const links = [
-    { to: "/", label: "Inicio" },
-    { to: "/#campanhas", label: "Campanhas" },
-    { to: "/loja", label: "Loja", isLink: true },
-    { to: "/#biografia", label: "Biografia" },
-    { to: "/#galeria", label: "Galeria" },
+    { to: settings.nav_url_home || "/", label: settings.nav_label_home || "Inicio" },
+    { to: settings.nav_url_campaigns || "/#campanhas", label: settings.nav_label_campaigns || "Campanhas" },
+    { to: settings.nav_url_store || "/loja", label: settings.nav_label_store || "Loja", isLink: true },
+    { to: settings.nav_url_bio || "/#biografia", label: settings.nav_label_bio || "Biografia" },
+    { to: settings.nav_url_gallery || "/#galeria", label: settings.nav_label_gallery || "Galeria" },
   ];
 
   const handleNavClick = (to) => {

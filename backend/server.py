@@ -275,10 +275,27 @@ class SiteSettingsUpdate(BaseModel):
     accent_color: Optional[str] = None
     bg_color: Optional[str] = None
     text_color: Optional[str] = None
+    btn_color: Optional[str] = None
+    btn_text_color: Optional[str] = None
     hero_title: Optional[str] = None
     hero_subtitle: Optional[str] = None
     support_email: Optional[str] = None
     marquee_text: Optional[str] = None
+    nav_label_home: Optional[str] = None
+    nav_label_campaigns: Optional[str] = None
+    nav_label_store: Optional[str] = None
+    nav_label_bio: Optional[str] = None
+    nav_label_gallery: Optional[str] = None
+    nav_url_home: Optional[str] = None
+    nav_url_campaigns: Optional[str] = None
+    nav_url_store: Optional[str] = None
+    nav_url_bio: Optional[str] = None
+    nav_url_gallery: Optional[str] = None
+    btn_label_hero_primary: Optional[str] = None
+    btn_label_hero_secondary: Optional[str] = None
+    btn_label_support: Optional[str] = None
+    btn_label_buy_card: Optional[str] = None
+    btn_label_buy_pix: Optional[str] = None
 
 class WithdrawRequest(BaseModel):
     amount: float
@@ -294,10 +311,27 @@ DEFAULT_SITE_SETTINGS = {
     "accent_color": "#FF3B30",
     "bg_color": "#FFFFFF",
     "text_color": "#09090B",
+    "btn_color": "#FFDE00",
+    "btn_text_color": "#09090B",
     "hero_title": "Apoie a Comedia. Leia um livro.",
     "hero_subtitle": "Financiamento coletivo dos livros de Edegar Agostinho. Apoie a comedia brasileira e receba seu livro em casa.",
     "support_email": "mateusbuarquepugli@gmail.com",
-    "marquee_text": "FINANCIAMENTO COLETIVO * PRODUTO ENTREGUE MESMO SE FATURAR R$0 * APOIE A COMEDIA * EDEGAR AGOSTINHO *"
+    "marquee_text": "FINANCIAMENTO COLETIVO * PRODUTO ENTREGUE MESMO SE FATURAR R$0 * APOIE A COMEDIA * EDEGAR AGOSTINHO *",
+    "nav_label_home": "Inicio",
+    "nav_label_campaigns": "Campanhas",
+    "nav_label_store": "Loja",
+    "nav_label_bio": "Biografia",
+    "nav_label_gallery": "Galeria",
+    "nav_url_home": "/",
+    "nav_url_campaigns": "/#campanhas",
+    "nav_url_store": "/loja",
+    "nav_url_bio": "/#biografia",
+    "nav_url_gallery": "/#galeria",
+    "btn_label_hero_primary": "Ver Campanhas",
+    "btn_label_hero_secondary": "Sobre Edegar",
+    "btn_label_support": "Apoiar",
+    "btn_label_buy_card": "Pagar com Cartao",
+    "btn_label_buy_pix": "Pagar com Pix"
 }
 
 # ─── Auth Routes ───

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { productAPI, checkoutAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import { ShoppingBag, CreditCard, QrCode, Copy, Check } from "lucide-react";
 
 export default function StorePage() {
@@ -11,6 +12,7 @@ export default function StorePage() {
   const [pixModal, setPixModal] = useState(null);
   const [copied, setCopied] = useState(false);
   const { user } = useAuth();
+  const { settings } = useSiteSettings();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -89,7 +91,7 @@ export default function StorePage() {
                       data-testid={`buy-card-${i}`}
                     >
                       <CreditCard size={16} />
-                      {checkoutLoading === product.id + "_card" ? "Processando..." : product.stock <= 0 ? "Esgotado" : "Cartao"}
+                      {checkoutLoading === product.id + "_card" ? "Processando..." : product.stock <= 0 ? "Esgotado" : (settings.btn_label_buy_card || "Cartao")}
                     </button>
                     <button
                       onClick={() => handleBuyPix(product)}
@@ -98,7 +100,7 @@ export default function StorePage() {
                       data-testid={`buy-pix-${i}`}
                     >
                       <QrCode size={16} />
-                      {checkoutLoading === product.id + "_pix" ? "Gerando..." : "Pix"}
+                      {checkoutLoading === product.id + "_pix" ? "Gerando..." : (settings.btn_label_buy_pix || "Pix")}
                     </button>
                   </div>
                   {!user && (

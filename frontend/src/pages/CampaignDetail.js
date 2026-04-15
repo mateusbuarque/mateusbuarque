@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { campaignAPI, checkoutAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import { Calendar, Users, Target, ArrowLeft, Truck, CreditCard, QrCode, Copy, Check } from "lucide-react";
 
 export default function CampaignDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { settings } = useSiteSettings();
   const navigate = useNavigate();
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -181,7 +183,7 @@ export default function CampaignDetail() {
                           data-testid={`tier-card-btn-${i}`}
                         >
                           <CreditCard size={16} />
-                          {checkoutLoading === tier.id + "_card" ? "Processando..." : "Pagar com Cartao"}
+                          {checkoutLoading === tier.id + "_card" ? "Processando..." : settings.btn_label_buy_card || "Pagar com Cartao"}
                         </button>
                         <button
                           onClick={() => handlePixPayment(tier)}
@@ -190,7 +192,7 @@ export default function CampaignDetail() {
                           data-testid={`tier-pix-btn-${i}`}
                         >
                           <QrCode size={16} />
-                          {checkoutLoading === tier.id + "_pix" ? "Gerando..." : "Pagar com Pix"}
+                          {checkoutLoading === tier.id + "_pix" ? "Gerando..." : settings.btn_label_buy_pix || "Pagar com Pix"}
                         </button>
                       </div>
                     </div>

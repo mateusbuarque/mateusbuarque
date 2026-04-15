@@ -12,10 +12,27 @@ const DEFAULTS = {
   accent_color: "#FF3B30",
   bg_color: "#FFFFFF",
   text_color: "#09090B",
+  btn_color: "#FFDE00",
+  btn_text_color: "#09090B",
   hero_title: "Apoie a Comedia. Leia um livro.",
   hero_subtitle: "Financiamento coletivo dos livros de Edegar Agostinho. Apoie a comedia brasileira e receba seu livro em casa.",
   support_email: "mateusbuarquepugli@gmail.com",
   marquee_text: "FINANCIAMENTO COLETIVO * PRODUTO ENTREGUE MESMO SE FATURAR R$0 * APOIE A COMEDIA * EDEGAR AGOSTINHO *",
+  nav_label_home: "Inicio",
+  nav_label_campaigns: "Campanhas",
+  nav_label_store: "Loja",
+  nav_label_bio: "Biografia",
+  nav_label_gallery: "Galeria",
+  nav_url_home: "/",
+  nav_url_campaigns: "/#campanhas",
+  nav_url_store: "/loja",
+  nav_url_bio: "/#biografia",
+  nav_url_gallery: "/#galeria",
+  btn_label_hero_primary: "Ver Campanhas",
+  btn_label_hero_secondary: "Sobre Edegar",
+  btn_label_support: "Apoiar",
+  btn_label_buy_card: "Pagar com Cartao",
+  btn_label_buy_pix: "Pagar com Pix",
 };
 
 export function SiteSettingsProvider({ children }) {
@@ -35,7 +52,6 @@ export function SiteSettingsProvider({ children }) {
       .catch(() => {});
   };
 
-  // Apply CSS variables
   useEffect(() => {
     if (!loaded) return;
     const root = document.documentElement;
@@ -44,6 +60,8 @@ export function SiteSettingsProvider({ children }) {
     root.style.setProperty("--site-accent", settings.accent_color);
     root.style.setProperty("--site-bg", settings.bg_color);
     root.style.setProperty("--site-text", settings.text_color);
+    root.style.setProperty("--site-btn", settings.btn_color);
+    root.style.setProperty("--site-btn-text", settings.btn_text_color);
   }, [settings, loaded]);
 
   return (

@@ -71,11 +71,11 @@ export default function Home() {
                 {settings.hero_subtitle}
               </p>
               <div className="flex flex-wrap gap-4">
-                <a href="#campanhas" className="brutalist-btn flex items-center gap-2" data-testid="hero-support-btn">
-                  Ver Campanhas <ArrowRight size={18} />
+                <a href={settings.nav_url_campaigns || "#campanhas"} className="brutalist-btn flex items-center gap-2" data-testid="hero-support-btn" style={{ backgroundColor: settings.btn_color, color: settings.btn_text_color }}>
+                  {settings.btn_label_hero_primary || "Ver Campanhas"} <ArrowRight size={18} />
                 </a>
-                <a href="#biografia" className="brutalist-btn-dark flex items-center gap-2">
-                  Sobre Edegar
+                <a href={settings.nav_url_bio || "#biografia"} className="brutalist-btn-dark flex items-center gap-2">
+                  {settings.btn_label_hero_secondary || "Sobre Edegar"}
                 </a>
               </div>
 
