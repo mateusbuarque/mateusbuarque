@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine } from "lucide-react";
+import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI } from "../lib/api";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload } from "lucide-react";
+import ImageUpload from "../components/ImageUpload";
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -255,10 +256,7 @@ export default function AdminDashboard() {
         {tab === "bio" && (
           <div>
             <div className="brutalist-card p-6 md:p-8 space-y-4">
-              <div>
-                <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">URL da Foto</label>
-                <input type="text" value={bio.photo_url} onChange={(e) => setBio({ ...bio, photo_url: e.target.value })} className="brutalist-input" data-testid="bio-photo-input" />
-              </div>
+              <ImageUpload value={bio.photo_url} onChange={(url) => setBio({ ...bio, photo_url: url })} label="Foto do Edegar" />
               <div>
                 <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Biografia</label>
                 <textarea value={bio.content} onChange={(e) => setBio({ ...bio, content: e.target.value })} className="brutalist-input min-h-[200px]" data-testid="bio-content-input" />
@@ -318,10 +316,10 @@ function GalleryTab({ gallery, onDelete, onAdd }) {
     <div>
       <div className="brutalist-card p-6 mb-6">
         <h3 className="font-bold text-sm uppercase mb-4">Adicionar Imagem</h3>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input type="text" placeholder="URL da imagem" value={url} onChange={(e) => setUrl(e.target.value)} className="brutalist-input flex-1" data-testid="gallery-url-input" />
-          <input type="text" placeholder="Legenda" value={caption} onChange={(e) => setCaption(e.target.value)} className="brutalist-input flex-1" data-testid="gallery-caption-input" />
-          <button onClick={handleAdd} className="brutalist-btn whitespace-nowrap" data-testid="gallery-add-btn"><Plus size={16} className="inline" /> Adicionar</button>
+        <div className="space-y-3">
+          <ImageUpload value={url} onChange={setUrl} label="Imagem da Galeria" />
+          <input type="text" placeholder="Legenda" value={caption} onChange={(e) => setCaption(e.target.value)} className="brutalist-input" data-testid="gallery-caption-input" />
+          <button onClick={handleAdd} className="brutalist-btn" data-testid="gallery-add-btn" disabled={!url}><Plus size={16} className="inline" /> Adicionar a Galeria</button>
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -387,8 +385,7 @@ function CampaignModal({ campaign, onClose, onSave }) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">URL da Capa</label>
-              <input type="text" value={form.cover_image} onChange={(e) => setForm({ ...form, cover_image: e.target.value })} className="brutalist-input" required data-testid="campaign-cover-input" />
+              <ImageUpload value={form.cover_image} onChange={(url) => setForm({ ...form, cover_image: url })} label="Capa da Campanha" />
             </div>
             <div>
               <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Meta (R$)</label>
@@ -484,8 +481,7 @@ function ProductModal({ product, onClose, onSave }) {
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="brutalist-input min-h-[100px]" required data-testid="product-description-input" />
           </div>
           <div>
-            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">URL da Imagem</label>
-            <input type="text" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className="brutalist-input" required data-testid="product-image-input" />
+            <ImageUpload value={form.image_url} onChange={(url) => setForm({ ...form, image_url: url })} label="Imagem do Produto" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

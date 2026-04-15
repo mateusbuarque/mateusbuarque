@@ -4,9 +4,9 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends
+from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends, UploadFile, File
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
@@ -15,6 +15,7 @@ import jwt
 import uuid
 import re
 import asyncio
+import requests as http_requests
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -30,6 +31,51 @@ try:
     HAS_RESEND = bool(resend.api_key)
 except ImportError:
     HAS_RESEND = False
+
+# ─── Object Storage ───
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+APP_NAME = "edegar-agostinho"
+storage_key = None
+
+def init_storage():
+    global storage_key
+    if storage_key:
+        return storage_key
+    if not EMERGENT_KEY:
+        logger.warning("EMERGENT_LLM_KEY not set, file uploads disabled")
+        return None
+    try:
+        resp = http_requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+        resp.raise_for_status()
+        storage_key = resp.json()["storage_key"]
+        return storage_key
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
+        return None
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=500, detail="Storage nao configurado")
+    resp = http_requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+def get_object(path: str):
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=500, detail="Storage nao configurado")
+    resp = http_requests.get(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key}, timeout=60
+    )
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -462,7 +508,7 @@ async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, use
     }
     checkout_request = CheckoutSessionRequest(
         amount=amount, currency="brl", success_url=success_url, cancel_url=cancel_url,
-        metadata=metadata, payment_methods=["card"]
+        metadata=metadata, payment_methods=["card", "pix"]
     )
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
@@ -500,7 +546,7 @@ async def checkout_product(data: CheckoutProductRequest, request: Request, user=
     }
     checkout_request = CheckoutSessionRequest(
         amount=amount, currency="brl", success_url=success_url, cancel_url=cancel_url,
-        metadata=metadata, payment_methods=["card"]
+        metadata=metadata, payment_methods=["card", "pix"]
     )
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
@@ -668,6 +714,58 @@ async def request_withdrawal(data: WithdrawRequest, user=Depends(require_admin))
     logger.info(f"Withdrawal completed: R$ {data.amount:.2f} to Pix {data.pix_key_type}: {data.pix_key}")
     return {"message": f"Saque de R$ {data.amount:.2f} realizado com sucesso!", "withdrawal": withdrawal}
 
+# ─── File Upload ───
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+@api_router.post("/upload")
+async def upload_file(file: UploadFile = File(...), user=Depends(require_admin)):
+    ext = file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Formato nao permitido. Use: {', '.join(ALLOWED_EXTENSIONS)}")
+    
+    data = await file.read()
+    if len(data) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (max 5MB)")
+    
+    mime_types = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif"}
+    content_type = mime_types.get(ext, file.content_type or "application/octet-stream")
+    
+    file_id = str(uuid.uuid4())
+    path = f"{APP_NAME}/uploads/{file_id}.{ext}"
+    
+    try:
+        result = await asyncio.to_thread(put_object, path, data, content_type)
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao fazer upload do arquivo")
+    
+    file_doc = {
+        "id": file_id,
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.files.insert_one(file_doc)
+    file_doc.pop("_id", None)
+    
+    return {"id": file_id, "url": f"/api/files/{file_id}", "filename": file.filename}
+
+@api_router.get("/files/{file_id}")
+async def serve_file(file_id: str):
+    record = await db.files.find_one({"id": file_id, "is_deleted": False}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Arquivo nao encontrado")
+    try:
+        data, content_type = await asyncio.to_thread(get_object, record["storage_path"])
+        return Response(content=data, media_type=record.get("content_type", content_type))
+    except Exception as e:
+        logger.error(f"File serve failed: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao carregar arquivo")
+
 # ─── Newsletter ───
 @api_router.post("/newsletter")
 async def subscribe_newsletter(data: NewsletterSubscribe):
@@ -748,6 +846,11 @@ async def seed_admin():
 async def startup():
     await db.users.create_index("email", unique=True)
     await seed_admin()
+    try:
+        init_storage()
+        logger.info("Storage initialized")
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
     logger.info("Server started")
 
 @app.on_event("shutdown")

@@ -48,6 +48,14 @@ export const galleryAPI = {
   delete: (id) => api.delete(`/gallery/${id}`),
 };
 
+export const uploadAPI = {
+  upload: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post("/upload", formData, { headers: { "Content-Type": "multipart/form-data" } });
+  },
+};
+
 export const bioAPI = {
   get: () => api.get("/bio"),
   update: (data) => api.put("/bio", data),

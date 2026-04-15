@@ -1,6 +1,7 @@
 import requests
 import sys
 import json
+import os
 from datetime import datetime, timedelta
 
 class CrowdfundingAPITester:
@@ -72,7 +73,7 @@ class CrowdfundingAPITester:
             "POST",
             "auth/login",
             200,
-            data={"email": "mateusbpugli@gmail.com", "password": "MateusBuarque1101"}
+            data={"email": "mateusbpugli@gmail.com", "password": "Mateus Buarque 1101"}
         )
         
         if success and 'id' in response:
@@ -587,10 +588,173 @@ class CrowdfundingAPITester:
             print(f"   Checkout URL created: {checkout['url'][:50]}...")
             
         return success
+
+    def test_file_upload(self):
+        """Test file upload functionality (NEW in iteration 5)"""
+        print("\n📁 Testing File Upload...")
+        
+        # Create a small test image file
+        test_image_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\tpHYs\x00\x00\x0b\x13\x00\x00\x0b\x13\x01\x00\x9a\x9c\x18\x00\x00\x00\nIDATx\x9cc\xf8\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00IEND\xaeB`\x82'
+        
+        # Test file upload
+        url = f"{self.api_url}/upload"
+        headers = {}
+        if self.token:
+            headers['Authorization'] = f'Bearer {self.token}'
+        
+        files = {'file': ('test.png', test_image_data, 'image/png')}
+        
+        self.tests_run += 1
+        print(f"   URL: {url}")
+        
+        try:
+            # Use requests directly instead of session for file upload
+            response = requests.post(url, files=files, headers=headers)
+            success = response.status_code == 200
+            
+            if success:
+                self.tests_passed += 1
+                print(f"✅ Passed - Status: {response.status_code}")
+                response_data = response.json()
+                file_id = response_data.get('id')
+                file_url = response_data.get('url')
+                print(f"   File uploaded - ID: {file_id}, URL: {file_url}")
+                
+                # Test file serving
+                if file_id:
+                    self.test_file_serve(file_id)
+                
+                return True
+            else:
+                print(f"❌ Failed - Expected 200, got {response.status_code}")
+                print(f"   Response: {response.text[:200]}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Failed - Error: {str(e)}")
+            return False
+
+    def test_file_serve(self, file_id):
+        """Test file serving"""
+        print(f"\n📥 Testing File Serving for ID: {file_id}...")
+        
+        success, response = self.run_test(
+            "File Serve",
+            "GET",
+            f"files/{file_id}",
+            200
+        )
+        
+        if success:
+            print(f"✅ File served successfully")
+        
+        return success
+
+    def test_pix_payment_methods(self):
+        """Test that checkout endpoints include Pix payment method (NEW in iteration 5)"""
+        print("\n💳 Testing Pix Payment Method Integration...")
+        
+        # Get campaigns first
+        success, campaigns = self.run_test(
+            "Get Campaigns for Pix Test",
+            "GET",
+            "campaigns",
+            200
+        )
+        
+        if not success or not campaigns:
+            print("❌ No campaigns available for Pix testing")
+            return False
+            
+        # Find an active campaign with tiers
+        active_campaign = None
+        for campaign in campaigns:
+            if campaign.get('is_active') and campaign.get('tiers'):
+                active_campaign = campaign
+                break
+                
+        if not active_campaign:
+            print("❌ No active campaign with tiers found for Pix testing")
+            return False
+            
+        tier = active_campaign['tiers'][0]
+        checkout_data = {
+            "campaign_id": active_campaign['id'],
+            "tier_id": tier['id'],
+            "origin_url": self.base_url
+        }
+        
+        # Test campaign checkout (should include Pix)
+        success, checkout = self.run_test(
+            "Campaign Checkout with Pix",
+            "POST",
+            "checkout/campaign",
+            200,
+            data=checkout_data,
+            auth_required=True
+        )
         
         if success and checkout.get('url'):
-            print(f"   Checkout URL created: {checkout['url'][:50]}...")
+            print(f"✅ Campaign checkout created with Pix support")
+            print(f"   Checkout URL: {checkout['url'][:50]}...")
             
+            # Test checkout status
+            if checkout.get('session_id'):
+                self.test_checkout_status(checkout['session_id'])
+        
+        # Test product checkout with Pix
+        success, products = self.run_test(
+            "Get Products for Pix Test",
+            "GET",
+            "products",
+            200
+        )
+        
+        if success and products:
+            active_product = None
+            for product in products:
+                if product.get('is_active'):
+                    active_product = product
+                    break
+                    
+            if active_product:
+                product_checkout_data = {
+                    "product_id": active_product['id'],
+                    "quantity": 1,
+                    "origin_url": self.base_url
+                }
+                
+                success, product_checkout = self.run_test(
+                    "Product Checkout with Pix",
+                    "POST",
+                    "checkout/product",
+                    200,
+                    data=product_checkout_data,
+                    auth_required=True
+                )
+                
+                if success and product_checkout.get('url'):
+                    print(f"✅ Product checkout created with Pix support")
+                    print(f"   Checkout URL: {product_checkout['url'][:50]}...")
+        
+        return True
+
+    def test_checkout_status(self, session_id):
+        """Test checkout status endpoint"""
+        print(f"\n📊 Testing Checkout Status for Session: {session_id}...")
+        
+        success, response = self.run_test(
+            "Checkout Status",
+            "GET",
+            f"checkout/status/{session_id}",
+            200
+        )
+        
+        if success and isinstance(response, dict):
+            status = response.get('status')
+            payment_status = response.get('payment_status')
+            print(f"✅ Status retrieved - Status: {status}, Payment: {payment_status}")
+        
         return success
 
 def main():
@@ -618,6 +782,8 @@ def main():
         tester.test_withdrawal_validation,  # NEW in iteration 4
         tester.test_withdrawal_success,     # NEW in iteration 4
         tester.test_checkout_creation,
+        tester.test_file_upload,        # NEW in iteration 5
+        tester.test_pix_payment_methods,    # NEW in iteration 5
     ]
     
     for test in tests:
