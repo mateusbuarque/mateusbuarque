@@ -1482,8 +1482,8 @@ async def shutdown_db_client():
 
 app.include_router(api_router)
 
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_URL", "https://edegar-comedy-store.preview.emergentagent.com")
-cors_origins = [FRONTEND_ORIGIN, "http://localhost:3000", "https://localhost:3000", "https://735e33bb-a616-4a6b-b492-6beb21fb6394.preview.emergentagent.com"]
+cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
+cors_origins = cors_origins_env if cors_origins_env == "*" else [o.strip() for o in cors_origins_env.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
