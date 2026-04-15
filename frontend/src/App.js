@@ -13,6 +13,7 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import StorePage from "./pages/StorePage";
 import OrderHistory from "./pages/OrderHistory";
 import LivePage from "./pages/LivePage";
+import VideosPage from "./pages/VideosPage";
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/meus-pedidos" element={<OrderHistory />} />
               <Route path="/live" element={<LivePage />} />
+              <Route path="/videos" element={<VideosPage />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/payment/success" element={<PaymentSuccess />} />

@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles } from "lucide-react";
+import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI, videosAPI } from "../lib/api";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play } from "lucide-react";
 import ImageUpload from "../components/ImageUpload";
 import AdminLivePanel from "../components/AdminLivePanel";
 
@@ -20,6 +20,7 @@ export default function AdminDashboard() {
   const [subscribers, setSubscribers] = useState([]);
   const [siteConfig, setSiteConfig] = useState({});
   const [showcaseItems, setShowcaseItems] = useState([]);
+  const [videosList, setVideosList] = useState([]);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
@@ -37,10 +38,10 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes] = await Promise.all([
+      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes, vidRes] = await Promise.all([
         campaignAPI.getAll(), productAPI.getAll(), adminAPI.stats(),
         galleryAPI.getAll(), bioAPI.get(), newsletterAPI.getSubscribers(),
-        siteSettingsAPI.get(), showcaseAPI.getAll(),
+        siteSettingsAPI.get(), showcaseAPI.getAll(), videosAPI.getAll(),
       ]);
       setCampaigns(campRes.data);
       setProducts(prodRes.data);
@@ -50,6 +51,7 @@ export default function AdminDashboard() {
       setSubscribers(subRes.data);
       setSiteConfig(settRes.data);
       setShowcaseItems(showRes.data);
+      setVideosList(vidRes.data);
     } catch (err) { console.error(err); }
   };
 
@@ -83,6 +85,7 @@ export default function AdminDashboard() {
     { id: "campaigns", label: "Campanhas", icon: <BarChart3 size={16} /> },
     { id: "products", label: "Loja", icon: <ShoppingBag size={16} /> },
     { id: "live", label: "Live", icon: <Radio size={16} /> },
+    { id: "videos", label: "Videos", icon: <Video size={16} /> },
     { id: "showcase", label: "Vitrine", icon: <Sparkles size={16} /> },
     { id: "gallery", label: "Galeria", icon: <Image size={16} /> },
     { id: "bio", label: "Biografia", icon: <FileText size={16} /> },
@@ -252,6 +255,9 @@ export default function AdminDashboard() {
 
         {/* Live Tab */}
         {tab === "live" && <AdminLivePanel />}
+
+        {/* Videos Tab */}
+        {tab === "videos" && <VideosTab videos={videosList} onRefresh={loadData} />}
 
         {/* Showcase Tab */}
         {tab === "showcase" && <ShowcaseTab items={showcaseItems} onRefresh={loadData} />}
@@ -1034,6 +1040,149 @@ function ShowcaseTab({ items, onRefresh }) {
         ))}
       </div>
       {items.length === 0 && <div className="brutalist-card p-8 text-center"><p className="text-zinc-500 font-bold uppercase text-sm">Vitrine vazia. Adicione imagens de seus projetos e produtos!</p></div>}
+    </div>
+  );
+}
+
+
+function VideosTab({ videos, onRefresh }) {
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadForm, setUploadForm] = useState({ title: "", description: "", thumbnail_url: "" });
+  const [videoFile, setVideoFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
+  const fileRef = useRef(null);
+
+  const handleUpload = async () => {
+    if (!videoFile || !uploadForm.title.trim()) {
+      alert("Selecione um video e defina um titulo");
+      return;
+    }
+    setUploading(true);
+    setUploadProgress("Enviando video...");
+    try {
+      const uploadRes = await videosAPI.upload(videoFile);
+      setUploadProgress("Salvando informacoes...");
+      await videosAPI.create({
+        title: uploadForm.title,
+        description: uploadForm.description,
+        thumbnail_url: uploadForm.thumbnail_url,
+        file_id: uploadRes.data.file_id,
+        storage_path: uploadRes.data.storage_path,
+        content_type: uploadRes.data.content_type,
+        size: uploadRes.data.size,
+        is_public: true,
+      });
+      setUploadForm({ title: "", description: "", thumbnail_url: "" });
+      setVideoFile(null);
+      setShowUpload(false);
+      if (fileRef.current) fileRef.current.value = "";
+      onRefresh();
+      alert("Video publicado!");
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.detail || "Erro ao enviar video");
+    } finally {
+      setUploading(false);
+      setUploadProgress("");
+    }
+  };
+
+  const toggleVisibility = async (vid) => {
+    await videosAPI.update(vid.id, { is_public: !vid.is_public });
+    onRefresh();
+  };
+
+  const deleteVideo = async (id) => {
+    if (!window.confirm("Excluir este video?")) return;
+    await videosAPI.delete(id);
+    onRefresh();
+  };
+
+  const formatSize = (bytes) => {
+    if (!bytes) return "";
+    if (bytes > 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    if (bytes > 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  };
+
+  return (
+    <div data-testid="videos-tab">
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-sm text-zinc-500 font-bold uppercase">{videos.length} video(s)</p>
+        <button onClick={() => setShowUpload(!showUpload)} className="brutalist-btn flex items-center gap-2 text-sm" data-testid="add-video-btn">
+          <Plus size={16} /> Novo Video
+        </button>
+      </div>
+
+      {showUpload && (
+        <div className="brutalist-card p-6 mb-6" data-testid="video-upload-form">
+          <h3 className="font-bold text-sm uppercase mb-4">Publicar Video</h3>
+          <div className="space-y-4 max-w-lg">
+            <div>
+              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Titulo</label>
+              <input type="text" value={uploadForm.title} onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })} className="brutalist-input" placeholder="Titulo do video" data-testid="video-title-input" />
+            </div>
+            <div>
+              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Descricao (opcional)</label>
+              <textarea value={uploadForm.description} onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })} className="brutalist-input min-h-[80px]" placeholder="Sobre o que e este video..." data-testid="video-description-input" />
+            </div>
+            <div>
+              <ImageUpload value={uploadForm.thumbnail_url} onChange={(url) => setUploadForm({ ...uploadForm, thumbnail_url: url })} label="Thumbnail / Capa (opcional)" />
+            </div>
+            <div>
+              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Arquivo de Video</label>
+              <input ref={fileRef} type="file" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo" onChange={(e) => setVideoFile(e.target.files?.[0] || null)} className="brutalist-input text-sm" data-testid="video-file-input" />
+              <p className="text-xs text-zinc-400 mt-1">MP4, WebM, MOV, AVI (max 500MB)</p>
+            </div>
+            {videoFile && (
+              <p className="text-xs text-zinc-600 font-bold">Arquivo: {videoFile.name} ({formatSize(videoFile.size)})</p>
+            )}
+            {uploadProgress && <p className="text-sm text-zinc-600 font-bold animate-pulse">{uploadProgress}</p>}
+            <div className="flex gap-3">
+              <button onClick={handleUpload} disabled={uploading} className="brutalist-btn flex items-center gap-2 text-sm" data-testid="publish-video-btn">
+                <Upload size={14} /> {uploading ? "Enviando..." : "Publicar Video"}
+              </button>
+              <button onClick={() => { setShowUpload(false); setVideoFile(null); }} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {videos.map((vid) => (
+          <div key={vid.id} className="brutalist-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4" data-testid={`video-item-${vid.id}`}>
+            <div className="w-24 h-16 bg-zinc-900 border-2 border-zinc-950 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {vid.thumbnail_url ? (
+                <img src={vid.thumbnail_url} alt={vid.title} className="w-full h-full object-cover" />
+              ) : (
+                <Play size={20} className="text-white" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-zinc-950 truncate">{vid.title}</h4>
+              <div className="flex gap-3 text-xs text-zinc-500 mt-1">
+                <span>{new Date(vid.created_at).toLocaleDateString("pt-BR")}</span>
+                {vid.size > 0 && <span>{formatSize(vid.size)}</span>}
+              </div>
+              {vid.description && <p className="text-xs text-zinc-500 mt-1 truncate">{vid.description}</p>}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={() => toggleVisibility(vid)} className={`flex items-center gap-1 px-3 py-1 border-2 font-bold text-xs uppercase ${vid.is_public ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`} data-testid={`video-vis-${vid.id}`}>
+                {vid.is_public ? <><Eye size={12} /> Publico</> : <><EyeOff size={12} /> Privado</>}
+              </button>
+              <a href={videosAPI.streamUrl(vid.id)} target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" title="Assistir"><Play size={14} /></a>
+              <button onClick={() => deleteVideo(vid.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
+            </div>
+          </div>
+        ))}
+        {videos.length === 0 && (
+          <div className="brutalist-card p-8 text-center">
+            <Video size={40} className="mx-auto mb-3 text-zinc-300" />
+            <p className="text-zinc-500 font-bold uppercase text-sm">Nenhum video publicado</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -60,6 +60,19 @@ export const showcaseAPI = {
   delete: (id) => api.delete(`/showcase/${id}`),
 };
 
+export const videosAPI = {
+  getAll: () => api.get("/videos"),
+  upload: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post("/videos/upload", formData, { headers: { "Content-Type": "multipart/form-data" }, timeout: 300000 });
+  },
+  create: (data) => api.post("/videos", data),
+  update: (id, data) => api.put(`/videos/${id}`, data),
+  delete: (id) => api.delete(`/videos/${id}`),
+  streamUrl: (id) => `${BACKEND_URL}/api/videos/${id}/stream`,
+};
+
 export const uploadAPI = {
   upload: (file) => {
     const formData = new FormData();

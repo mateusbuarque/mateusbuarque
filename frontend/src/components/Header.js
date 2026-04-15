@@ -25,6 +25,7 @@ export default function Header() {
     { to: settings.nav_url_store || "/loja", label: settings.nav_label_store || "Loja", isLink: true },
     { to: settings.nav_url_bio || "/#biografia", label: settings.nav_label_bio || "Biografia" },
     { to: settings.nav_url_gallery || "/#galeria", label: settings.nav_label_gallery || "Galeria" },
+    { to: "/videos", label: "Videos", isLink: true },
     { to: "/live", label: "Live", isLink: true, isLive: true },
   ];
 

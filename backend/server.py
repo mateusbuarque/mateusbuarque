@@ -899,6 +899,95 @@ async def delete_showcase_item(item_id: str, user=Depends(require_admin)):
         raise HTTPException(status_code=404, detail="Item nao encontrado")
     return {"message": "Excluido"}
 
+# ─── Videos ───
+VIDEO_EXTENSIONS = {"mp4", "webm", "mov", "avi"}
+MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500MB
+
+@api_router.post("/videos/upload")
+async def upload_video(file: UploadFile = File(...), user=Depends(require_admin)):
+    ext = file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    if ext not in VIDEO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Formato nao permitido. Use: {', '.join(VIDEO_EXTENSIONS)}")
+    data = await file.read()
+    if len(data) > MAX_VIDEO_SIZE:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (max 500MB)")
+    mime_types = {"mp4": "video/mp4", "webm": "video/webm", "mov": "video/quicktime", "avi": "video/x-msvideo"}
+    content_type = mime_types.get(ext, file.content_type or "video/mp4")
+    file_id = str(uuid.uuid4())
+    path = f"{APP_NAME}/videos/{file_id}.{ext}"
+    try:
+        result = await asyncio.to_thread(put_object, path, data, content_type)
+    except Exception as e:
+        logger.error(f"Video upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao fazer upload do video")
+    return {"file_id": file_id, "storage_path": result["path"], "size": result.get("size", len(data)), "content_type": content_type}
+
+@api_router.post("/videos")
+async def create_video(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    video = {
+        "id": str(uuid.uuid4()),
+        "title": body.get("title", ""),
+        "description": body.get("description", ""),
+        "file_id": body.get("file_id", ""),
+        "storage_path": body.get("storage_path", ""),
+        "thumbnail_url": body.get("thumbnail_url", ""),
+        "content_type": body.get("content_type", "video/mp4"),
+        "size": body.get("size", 0),
+        "is_public": body.get("is_public", True),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user["email"]
+    }
+    await db.videos.insert_one(video)
+    video.pop("_id", None)
+    return video
+
+@api_router.get("/videos")
+async def get_videos(request: Request):
+    token = request.cookies.get("access_token")
+    auth_header = request.headers.get("Authorization", "")
+    is_admin = False
+    if token or auth_header:
+        try:
+            t = token or (auth_header[7:] if auth_header.startswith("Bearer ") else "")
+            payload = jwt.decode(t, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+            u = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+            if u and u.get("role") == "admin":
+                is_admin = True
+        except Exception:
+            pass
+    if is_admin:
+        return await db.videos.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return await db.videos.find({"is_public": True}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+@api_router.put("/videos/{video_id}")
+async def update_video(video_id: str, request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    update = {k: v for k, v in body.items() if k in ("title", "description", "thumbnail_url", "is_public")}
+    result = await db.videos.update_one({"id": video_id}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Video nao encontrado")
+    return await db.videos.find_one({"id": video_id}, {"_id": 0})
+
+@api_router.delete("/videos/{video_id}")
+async def delete_video(video_id: str, user=Depends(require_admin)):
+    result = await db.videos.delete_one({"id": video_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Video nao encontrado")
+    return {"message": "Video excluido"}
+
+@api_router.get("/videos/{video_id}/stream")
+async def stream_video(video_id: str):
+    video = await db.videos.find_one({"id": video_id}, {"_id": 0})
+    if not video:
+        raise HTTPException(status_code=404, detail="Video nao encontrado")
+    try:
+        data, _ = await asyncio.to_thread(get_object, video["storage_path"])
+        return Response(content=data, media_type=video.get("content_type", "video/mp4"))
+    except Exception as e:
+        logger.error(f"Video stream failed: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao carregar video")
+
 # ─── File Upload ───
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
