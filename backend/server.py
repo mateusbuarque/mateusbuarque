@@ -194,6 +194,7 @@ class CampaignTier(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     price: float
+    min_donation: float = 0
     description: str
     delivery_date: str
     items: List[str] = []
@@ -245,11 +246,25 @@ class CheckoutCampaignRequest(BaseModel):
     campaign_id: str
     tier_id: str
     origin_url: str
+    custom_amount: Optional[float] = None
+    payment_method: str = "card"
 
 class CheckoutProductRequest(BaseModel):
     product_id: str
     quantity: int = 1
     origin_url: str
+    payment_method: str = "card"
+
+class PixPaymentCreate(BaseModel):
+    type: str
+    campaign_id: Optional[str] = None
+    tier_id: Optional[str] = None
+    product_id: Optional[str] = None
+    quantity: int = 1
+    custom_amount: Optional[float] = None
+
+class PixConfirmRequest(BaseModel):
+    transaction_id: str
 
 class SiteSettingsUpdate(BaseModel):
     site_name: Optional[str] = None
@@ -484,6 +499,9 @@ async def process_successful_payment(tx):
     if tx.get("user_email"):
         await send_notification_email(tx["user_email"], subject, html)
 
+PIX_KEY = "mateusbpugli@gmail.com"
+PIX_KEY_TYPE = "email"
+
 @api_router.post("/checkout/campaign")
 async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, user=Depends(get_current_user)):
     campaign = await db.campaigns.find_one({"id": data.campaign_id}, {"_id": 0})
@@ -493,7 +511,15 @@ async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, use
     if not tier:
         raise HTTPException(status_code=404, detail="Recompensa nao encontrada")
     
-    amount = float(tier["price"])
+    min_amount = tier.get("min_donation", 0) or tier["price"]
+    if data.custom_amount and data.custom_amount >= min_amount:
+        amount = float(data.custom_amount)
+    else:
+        amount = float(tier["price"])
+    
+    if amount < min_amount:
+        raise HTTPException(status_code=400, detail=f"Valor minimo: R$ {min_amount:.2f}")
+    
     api_key = os.environ.get("STRIPE_API_KEY")
     host_url = str(request.base_url).rstrip("/")
     webhook_url = f"{host_url}/api/webhook/stripe"
@@ -508,7 +534,7 @@ async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, use
     }
     checkout_request = CheckoutSessionRequest(
         amount=amount, currency="brl", success_url=success_url, cancel_url=cancel_url,
-        metadata=metadata, payment_methods=["card", "pix"]
+        metadata=metadata, payment_methods=["card"]
     )
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
@@ -518,6 +544,7 @@ async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, use
         "amount": amount, "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
         "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
         "user_name": user.get("name", ""), "payment_status": "pending",
+        "payment_method": "card",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.payment_transactions.insert_one(transaction)
@@ -546,7 +573,7 @@ async def checkout_product(data: CheckoutProductRequest, request: Request, user=
     }
     checkout_request = CheckoutSessionRequest(
         amount=amount, currency="brl", success_url=success_url, cancel_url=cancel_url,
-        metadata=metadata, payment_methods=["card", "pix"]
+        metadata=metadata, payment_methods=["card"]
     )
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
@@ -557,10 +584,96 @@ async def checkout_product(data: CheckoutProductRequest, request: Request, user=
         "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
         "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
         "user_name": user.get("name", ""), "payment_status": "pending",
+        "payment_method": "card",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.payment_transactions.insert_one(transaction)
     return {"url": session.url, "session_id": session.session_id}
+
+# ─── Pix Manual Payment ───
+@api_router.post("/checkout/pix")
+async def create_pix_payment(data: PixPaymentCreate, user=Depends(get_current_user)):
+    amount = 0.0
+    item_title = ""
+    
+    if data.type == "campaign":
+        if not data.campaign_id or not data.tier_id:
+            raise HTTPException(status_code=400, detail="campaign_id e tier_id obrigatorios")
+        campaign = await db.campaigns.find_one({"id": data.campaign_id}, {"_id": 0})
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campanha nao encontrada")
+        tier = next((t for t in campaign.get("tiers", []) if t["id"] == data.tier_id), None)
+        if not tier:
+            raise HTTPException(status_code=404, detail="Recompensa nao encontrada")
+        min_amount = tier.get("min_donation", 0) or tier["price"]
+        if data.custom_amount and data.custom_amount >= min_amount:
+            amount = float(data.custom_amount)
+        else:
+            amount = float(tier["price"])
+        if amount < min_amount:
+            raise HTTPException(status_code=400, detail=f"Valor minimo: R$ {min_amount:.2f}")
+        item_title = campaign["title"]
+    elif data.type == "product":
+        if not data.product_id:
+            raise HTTPException(status_code=400, detail="product_id obrigatorio")
+        product = await db.products.find_one({"id": data.product_id}, {"_id": 0})
+        if not product:
+            raise HTTPException(status_code=404, detail="Produto nao encontrado")
+        amount = float(product["price"]) * data.quantity
+        item_title = product["title"]
+    else:
+        raise HTTPException(status_code=400, detail="Tipo invalido")
+    
+    tx_id = str(uuid.uuid4())
+    transaction = {
+        "id": tx_id, "session_id": f"pix_{tx_id}", "type": data.type,
+        "campaign_id": data.campaign_id, "tier_id": data.tier_id,
+        "product_id": data.product_id, "quantity": data.quantity,
+        "amount": amount, "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
+        "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
+        "user_name": user.get("name", ""), "payment_status": "awaiting_pix",
+        "payment_method": "pix",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.payment_transactions.insert_one(transaction)
+    
+    return {
+        "transaction_id": tx_id,
+        "amount": amount,
+        "pix_key": PIX_KEY,
+        "pix_key_type": PIX_KEY_TYPE,
+        "item_title": item_title,
+        "message": f"Envie R$ {amount:.2f} via Pix para {PIX_KEY}"
+    }
+
+@api_router.get("/pix-info")
+async def get_pix_info():
+    return {"pix_key": PIX_KEY, "pix_key_type": PIX_KEY_TYPE}
+
+@api_router.post("/admin/confirm-pix")
+async def confirm_pix_payment(data: PixConfirmRequest, user=Depends(require_admin)):
+    tx = await db.payment_transactions.find_one({"id": data.transaction_id}, {"_id": 0})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transacao nao encontrada")
+    if tx["payment_status"] != "awaiting_pix":
+        raise HTTPException(status_code=400, detail="Transacao ja processada")
+    
+    await db.payment_transactions.update_one(
+        {"id": data.transaction_id}, {"$set": {"payment_status": "paid"}}
+    )
+    if tx.get("type") == "campaign" and tx.get("campaign_id"):
+        await db.campaigns.update_one(
+            {"id": tx["campaign_id"]}, {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
+        )
+    elif tx.get("type") == "product" and tx.get("product_id"):
+        qty = tx.get("quantity", 1)
+        await db.products.update_one(
+            {"id": tx["product_id"]}, {"$inc": {"sold_count": qty, "stock": -qty}}
+        )
+    
+    tx["payment_status"] = "paid"
+    await process_successful_payment(tx)
+    return {"message": "Pagamento Pix confirmado!"}
 
 @api_router.get("/checkout/status/{session_id}")
 async def get_checkout_status(session_id: str, request: Request):

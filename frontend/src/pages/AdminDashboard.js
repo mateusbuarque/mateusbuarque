@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI } from "../lib/api";
+import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI } from "../lib/api";
 import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload } from "lucide-react";
 import ImageUpload from "../components/ImageUpload";
 
@@ -173,6 +173,42 @@ export default function AdminDashboard() {
               })}
               {campaigns.length === 0 && <div className="brutalist-card p-8 text-center"><p className="text-zinc-500 font-bold uppercase">Nenhuma campanha criada</p></div>}
             </div>
+            {/* Pix Pending */}
+            {stats && stats.transactions && stats.transactions.filter(t => t.payment_status === "awaiting_pix").length > 0 && (
+              <div className="mt-8">
+                <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-4 flex items-center gap-2">
+                  <span className="w-3 h-3 bg-[#FFDE00] border-2 border-zinc-950 inline-block animate-pulse" />
+                  Pix Aguardando Confirmacao
+                </h3>
+                <div className="space-y-3">
+                  {stats.transactions.filter(t => t.payment_status === "awaiting_pix").map((tx) => (
+                    <div key={tx.id} className="brutalist-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 border-l-4 border-l-[#FFDE00]" data-testid={`pix-pending-${tx.id}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-zinc-950">{tx.user_name || tx.user_email}</div>
+                        <div className="text-xs text-zinc-500 mt-1">
+                          {tx.type === "campaign" ? "Campanha" : "Loja"} - {new Date(tx.created_at).toLocaleDateString("pt-BR")} {new Date(tx.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          {tx.payment_method === "pix" && <span className="ml-2 px-2 py-0.5 bg-zinc-100 text-zinc-600 text-xs font-bold uppercase">Pix</span>}
+                        </div>
+                      </div>
+                      <div className="font-['Outfit'] font-black text-xl">R$ {(tx.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm(`Confirmar recebimento de R$ ${tx.amount.toFixed(2)} via Pix de ${tx.user_name || tx.user_email}?`)) return;
+                          try {
+                            await adminPixAPI.confirm(tx.id);
+                            loadData();
+                          } catch (err) { alert(err.response?.data?.detail || "Erro"); }
+                        }}
+                        className="brutalist-btn text-sm py-2 px-4 whitespace-nowrap"
+                        data-testid={`confirm-pix-${tx.id}`}
+                      >
+                        Confirmar Pix
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* Transactions */}
             {stats && stats.transactions && stats.transactions.length > 0 && (
               <div className="mt-12">
@@ -197,7 +233,7 @@ export default function AdminDashboard() {
                           <td className="p-3 text-zinc-800 font-medium">{tx.user_name || tx.user_email || "-"}</td>
                           <td className="p-3 font-bold">R$ {(tx.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
                           <td className="p-3 text-zinc-500">R$ {(tx.platform_fee || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                          <td className="p-3"><span className={`px-2 py-1 text-xs font-bold uppercase ${tx.payment_status === "paid" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>{tx.payment_status}</span></td>
+                          <td className="p-3"><span className={`px-2 py-1 text-xs font-bold uppercase ${tx.payment_status === "paid" ? "bg-green-100 text-green-800" : tx.payment_status === "awaiting_pix" ? "bg-orange-100 text-orange-800" : "bg-yellow-100 text-yellow-800"}`}>{tx.payment_status === "awaiting_pix" ? "Pix pendente" : tx.payment_status}</span></td>
                         </tr>
                       ))}
                     </tbody>
@@ -348,7 +384,7 @@ function CampaignModal({ campaign, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const addTier = () => setTiers([...tiers, { id: crypto.randomUUID(), title: "", price: "", description: "", delivery_date: "", items: [] }]);
+  const addTier = () => setTiers([...tiers, { id: crypto.randomUUID(), title: "", price: "", min_donation: "", description: "", delivery_date: "", items: [] }]);
   const updateTier = (i, field, value) => { const n = [...tiers]; n[i] = { ...n[i], [field]: value }; setTiers(n); };
   const removeTier = (i) => setTiers(tiers.filter((_, idx) => idx !== i));
 
@@ -358,7 +394,7 @@ function CampaignModal({ campaign, onClose, onSave }) {
     try {
       const payload = {
         ...form, goal_amount: parseFloat(form.goal_amount) || 0,
-        tiers: tiers.map((t) => ({ ...t, price: parseFloat(t.price) || 0, items: typeof t.items === "string" ? t.items.split(",").map(s => s.trim()).filter(Boolean) : (t.items || []) })),
+        tiers: tiers.map((t) => ({ ...t, price: parseFloat(t.price) || 0, min_donation: parseFloat(t.min_donation) || 0, items: typeof t.items === "string" ? t.items.split(",").map(s => s.trim()).filter(Boolean) : (t.items || []) })),
       };
       if (isEdit) await campaignAPI.update(campaign.id, payload);
       else await campaignAPI.create(payload);
@@ -419,7 +455,11 @@ function CampaignModal({ campaign, onClose, onSave }) {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <input type="text" placeholder="Titulo" value={tier.title} onChange={(e) => updateTier(i, "title", e.target.value)} className="brutalist-input text-sm" />
-                  <input type="number" step="0.01" placeholder="Preco (R$)" value={tier.price} onChange={(e) => updateTier(i, "price", e.target.value)} className="brutalist-input text-sm" />
+                  <input type="number" step="0.01" placeholder="Preco sugerido (R$)" value={tier.price} onChange={(e) => updateTier(i, "price", e.target.value)} className="brutalist-input text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="number" step="0.01" placeholder="Doacao minima (R$)" value={tier.min_donation || ""} onChange={(e) => updateTier(i, "min_donation", e.target.value)} className="brutalist-input text-sm" />
+                  <div className="text-xs text-zinc-400 self-center">Se vazio, minimo = preco sugerido. Doador pode doar mais.</div>
                 </div>
                 <input type="text" placeholder="Descricao" value={tier.description} onChange={(e) => updateTier(i, "description", e.target.value)} className="brutalist-input text-sm" />
                 <div className="grid grid-cols-2 gap-3">

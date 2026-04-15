@@ -34,7 +34,13 @@ export const productAPI = {
 export const checkoutAPI = {
   campaign: (data) => api.post("/checkout/campaign", { ...data, origin_url: window.location.origin }),
   product: (data) => api.post("/checkout/product", { ...data, origin_url: window.location.origin }),
+  pix: (data) => api.post("/checkout/pix", data),
+  pixInfo: () => api.get("/pix-info"),
   status: (sessionId) => api.get(`/checkout/status/${sessionId}`),
+};
+
+export const adminPixAPI = {
+  confirm: (transactionId) => api.post("/admin/confirm-pix", { transaction_id: transactionId }),
 };
 
 export const newsletterAPI = {

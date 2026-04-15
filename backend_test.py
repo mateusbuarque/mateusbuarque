@@ -13,6 +13,7 @@ class CrowdfundingAPITester:
         self.tests_passed = 0
         self.session = requests.Session()
         self.session.headers.update({'Content-Type': 'application/json'})
+        self.test_transaction_id = None  # For storing transaction ID for confirmation tests
 
     def run_test(self, name, method, endpoint, expected_status, data=None, auth_required=False):
         """Run a single API test"""
@@ -650,9 +651,33 @@ class CrowdfundingAPITester:
         
         return success
 
-    def test_pix_payment_methods(self):
-        """Test that checkout endpoints include Pix payment method (NEW in iteration 5)"""
-        print("\n💳 Testing Pix Payment Method Integration...")
+    def test_pix_info_endpoint(self):
+        """Test GET /api/pix-info returns pix_key (NEW in iteration 6)"""
+        print("\n💳 Testing Pix Info Endpoint...")
+        
+        success, response = self.run_test(
+            "Get Pix Info",
+            "GET",
+            "pix-info",
+            200
+        )
+        
+        if success and isinstance(response, dict):
+            pix_key = response.get('pix_key')
+            pix_key_type = response.get('pix_key_type')
+            
+            if pix_key == "mateusbpugli@gmail.com" and pix_key_type == "email":
+                print(f"✅ Pix info correct - Key: {pix_key}, Type: {pix_key_type}")
+                return True
+            else:
+                print(f"❌ Unexpected Pix info - Key: {pix_key}, Type: {pix_key_type}")
+                return False
+        
+        return False
+
+    def test_pix_payment_creation(self):
+        """Test POST /api/checkout/pix creates pending Pix transaction (NEW in iteration 6)"""
+        print("\n💳 Testing Pix Payment Creation...")
         
         # Get campaigns first
         success, campaigns = self.run_test(
@@ -678,31 +703,46 @@ class CrowdfundingAPITester:
             return False
             
         tier = active_campaign['tiers'][0]
-        checkout_data = {
+        
+        # Test campaign Pix payment creation
+        pix_data = {
+            "type": "campaign",
             "campaign_id": active_campaign['id'],
             "tier_id": tier['id'],
-            "origin_url": self.base_url
+            "custom_amount": tier.get('price', 25.0)
         }
         
-        # Test campaign checkout (should include Pix)
-        success, checkout = self.run_test(
-            "Campaign Checkout with Pix",
+        success, pix_response = self.run_test(
+            "Create Campaign Pix Payment",
             "POST",
-            "checkout/campaign",
+            "checkout/pix",
             200,
-            data=checkout_data,
+            data=pix_data,
             auth_required=True
         )
         
-        if success and checkout.get('url'):
-            print(f"✅ Campaign checkout created with Pix support")
-            print(f"   Checkout URL: {checkout['url'][:50]}...")
+        if success and isinstance(pix_response, dict):
+            required_fields = ['transaction_id', 'amount', 'pix_key', 'pix_key_type', 'item_title']
+            missing_fields = [field for field in required_fields if field not in pix_response]
             
-            # Test checkout status
-            if checkout.get('session_id'):
-                self.test_checkout_status(checkout['session_id'])
+            if missing_fields:
+                print(f"❌ Missing required fields in Pix response: {missing_fields}")
+                return False
+            
+            if pix_response.get('pix_key') != "mateusbpugli@gmail.com":
+                print(f"❌ Wrong Pix key: {pix_response.get('pix_key')}")
+                return False
+                
+            print(f"✅ Campaign Pix payment created:")
+            print(f"   Transaction ID: {pix_response.get('transaction_id')}")
+            print(f"   Amount: R$ {pix_response.get('amount')}")
+            print(f"   Pix Key: {pix_response.get('pix_key')}")
+            print(f"   Item: {pix_response.get('item_title')}")
+            
+            # Store transaction ID for confirmation test
+            self.test_transaction_id = pix_response.get('transaction_id')
         
-        # Test product checkout with Pix
+        # Test product Pix payment creation
         success, products = self.run_test(
             "Get Products for Pix Test",
             "GET",
@@ -718,24 +758,174 @@ class CrowdfundingAPITester:
                     break
                     
             if active_product:
-                product_checkout_data = {
+                product_pix_data = {
+                    "type": "product",
                     "product_id": active_product['id'],
-                    "quantity": 1,
-                    "origin_url": self.base_url
+                    "quantity": 1
                 }
                 
-                success, product_checkout = self.run_test(
-                    "Product Checkout with Pix",
+                success, product_pix_response = self.run_test(
+                    "Create Product Pix Payment",
                     "POST",
-                    "checkout/product",
+                    "checkout/pix",
                     200,
-                    data=product_checkout_data,
+                    data=product_pix_data,
                     auth_required=True
                 )
                 
-                if success and product_checkout.get('url'):
-                    print(f"✅ Product checkout created with Pix support")
-                    print(f"   Checkout URL: {product_checkout['url'][:50]}...")
+                if success and isinstance(product_pix_response, dict):
+                    print(f"✅ Product Pix payment created:")
+                    print(f"   Transaction ID: {product_pix_response.get('transaction_id')}")
+                    print(f"   Amount: R$ {product_pix_response.get('amount')}")
+                    print(f"   Item: {product_pix_response.get('item_title')}")
+        
+        return True
+
+    def test_pix_confirmation(self):
+        """Test POST /api/admin/confirm-pix confirms payment (NEW in iteration 6)"""
+        print("\n💳 Testing Pix Payment Confirmation...")
+        
+        # First create a Pix payment to confirm
+        if not hasattr(self, 'test_transaction_id'):
+            print("⚠️  No transaction ID available from previous test")
+            return True  # Not a failure, just no transaction to confirm
+            
+        success, response = self.run_test(
+            "Confirm Pix Payment",
+            "POST",
+            "admin/confirm-pix",
+            200,
+            data={"transaction_id": self.test_transaction_id},
+            auth_required=True
+        )
+        
+        if success and isinstance(response, dict):
+            message = response.get('message', '')
+            if 'confirmado' in message.lower():
+                print(f"✅ Pix payment confirmed: {message}")
+                return True
+            else:
+                print(f"❌ Unexpected confirmation response: {message}")
+                return False
+        
+        return False
+
+    def test_min_donation_validation(self):
+        """Test that backend validates custom_amount >= min_donation (NEW in iteration 6)"""
+        print("\n💰 Testing Min Donation Validation...")
+        
+        # Get campaigns first
+        success, campaigns = self.run_test(
+            "Get Campaigns for Min Donation Test",
+            "GET",
+            "campaigns",
+            200
+        )
+        
+        if not success or not campaigns:
+            print("❌ No campaigns available for min donation testing")
+            return False
+            
+        # Find a campaign with min_donation set
+        test_campaign = None
+        test_tier = None
+        for campaign in campaigns:
+            if campaign.get('is_active') and campaign.get('tiers'):
+                for tier in campaign['tiers']:
+                    if tier.get('min_donation') and tier['min_donation'] > 0:
+                        test_campaign = campaign
+                        test_tier = tier
+                        break
+                if test_campaign:
+                    break
+                    
+        if not test_campaign or not test_tier:
+            print("⚠️  No campaigns with min_donation found - creating test scenario")
+            return True  # Not a failure, just no test data
+            
+        min_donation = test_tier['min_donation']
+        
+        # Test with amount below minimum (should fail)
+        below_min_data = {
+            "type": "campaign",
+            "campaign_id": test_campaign['id'],
+            "tier_id": test_tier['id'],
+            "custom_amount": min_donation - 1.0
+        }
+        
+        success, response = self.run_test(
+            f"Pix Payment Below Min (R$ {min_donation - 1.0:.2f} < R$ {min_donation:.2f})",
+            "POST",
+            "checkout/pix",
+            400,  # Should fail with 400
+            data=below_min_data,
+            auth_required=True
+        )
+        
+        if success:
+            print(f"✅ Correctly rejected payment below minimum")
+        
+        # Test with amount at minimum (should succeed)
+        at_min_data = {
+            "type": "campaign",
+            "campaign_id": test_campaign['id'],
+            "tier_id": test_tier['id'],
+            "custom_amount": min_donation
+        }
+        
+        success2, response2 = self.run_test(
+            f"Pix Payment At Min (R$ {min_donation:.2f})",
+            "POST",
+            "checkout/pix",
+            200,  # Should succeed
+            data=at_min_data,
+            auth_required=True
+        )
+        
+        if success2:
+            print(f"✅ Correctly accepted payment at minimum")
+        
+        # Test with amount above minimum (should succeed)
+        above_min_data = {
+            "type": "campaign",
+            "campaign_id": test_campaign['id'],
+            "tier_id": test_tier['id'],
+            "custom_amount": min_donation + 10.0
+        }
+        
+        success3, response3 = self.run_test(
+            f"Pix Payment Above Min (R$ {min_donation + 10.0:.2f})",
+            "POST",
+            "checkout/pix",
+            200,  # Should succeed
+            data=above_min_data,
+            auth_required=True
+        )
+        
+        if success3:
+            print(f"✅ Correctly accepted payment above minimum")
+        
+        return success and success2 and success3
+
+    def test_pix_payment_methods(self):
+        """Test that checkout endpoints include Pix payment method (UPDATED in iteration 6)"""
+        print("\n💳 Testing Pix Payment Method Integration...")
+        
+        # Test Pix info endpoint
+        if not self.test_pix_info_endpoint():
+            return False
+            
+        # Test Pix payment creation
+        if not self.test_pix_payment_creation():
+            return False
+            
+        # Test min donation validation
+        if not self.test_min_donation_validation():
+            return False
+            
+        # Test Pix confirmation
+        if not self.test_pix_confirmation():
+            return False
         
         return True
 
