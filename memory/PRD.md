@@ -1,33 +1,49 @@
-# PRD - Site Edegar Agostinho
+# PRD — Site Edegar Agostinho (Financiamento Coletivo + Loja)
 
-## Architecture
-- Frontend: React + Tailwind (neo-brutalist)
-- Backend: FastAPI + MongoDB
-- Auth: JWT (admin + users with phone)
-- Payments: Stripe (card)
-- Email: Resend (log mode until key added)
+## Problema Original
+Criar um site profissional para o comediante Edegar Agostinho vender seus livros, com financiamento coletivo (apenas o admin pode postar), inspirado no fabricadohumor.com.br.
 
-## Implemented
+## Requisitos Principais
+- Pagamento via Pix (direto para o admin) e Cartão de Crédito (Stripe)
+- Campanhas de financiamento coletivo com metas, níveis de apoio e barra de progresso
+- Loja normal para venda de produtos
+- Área de administrador para gerenciar tudo
+- Sistema de Live Streaming (OBS Studio) e upload de Vídeos
+- Sistema de Assinaturas (Planos) para restringir acesso a conteúdo
+- Personalização avançada da UI pelo admin
 
-### Iteration 1 (14 Apr 2026)
-- Crowdfunding with campaigns CRUD (max 10), tiers, progress bar
-- Admin dashboard, gallery, biography, newsletter
-- Stripe checkout + 5% fee
+## Stack Técnica
+- **Frontend**: React, Tailwind CSS (Neo-Brutalist), React Router, Shadcn/UI
+- **Backend**: FastAPI, Motor (Async MongoDB), WebSockets
+- **DB**: MongoDB
+- **Integrações**: Stripe (pagamentos), Emergent Object Storage (uploads), Resend (emails)
 
-### Iteration 2
-- Admin: mateusbpugli@gmail.com / Mateus Buarque 1101
-- User registration with email + password + phone
-- Products/store section (max 10)
-- Login required for buying/supporting
+## O que foi implementado
+- [x] Scaffold Full-Stack (FastAPI + React + MongoDB)
+- [x] Autenticação Admin & Usuário (JWT + Cookies)
+- [x] CRUD Campanhas de Financiamento Coletivo
+- [x] Loja de Produtos
+- [x] Integração Stripe + PIX manual
+- [x] Object Storage para imagens/vídeos
+- [x] Live Streaming (OBS Studio compatível)
+- [x] Gravações de Lives & VOD
+- [x] Sistema de Assinaturas/Planos
+- [x] Controle de visibilidade de conteúdo (Público, Privado, Assinantes)
+- [x] Menu lateral dinâmico
+- [x] Configurações básicas do site (cores, ícone, labels)
+- [x] CORS & Secure Cookie fixes para produção
+- [x] Deploy readiness fixes (CORS env var, APP_NAME env var)
 
-### Iteration 3
-- Purchase history at /meus-pedidos
-- Admin full site customization (name, logo, colors, hero text, marquee, support email)
-- Email notifications (LOG mode - add RESEND_API_KEY to .env for real emails)
-- Dynamic site settings applied across all pages
+## Backlog Priorizado
+### P0
+- [ ] Expandir Configurações do Site (identidade, cores, textos, menu, botões)
 
-## Backlog
-- [ ] Add RESEND_API_KEY for real email notifications
-- [ ] Social sharing buttons
-- [ ] Campaign updates/comments
-- [ ] PDF receipts
+### P1
+- Nenhum pendente
+
+### P2
+- Melhorias de UX conforme feedback do usuário
+- Domínio customizado
+
+## Credenciais Admin
+- Ver `/app/memory/test_credentials.md`
