@@ -739,9 +739,9 @@ function BalanceTab() {
           </div>
         </div>
         <div className="brutalist-card p-6 text-center">
-          <div className="text-xs font-bold uppercase text-zinc-500 mb-1">Taxa Plataforma (5%)</div>
-          <div className="font-['Outfit'] font-black text-2xl text-red-600">
-            - R$ {balance.platform_fee.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          <div className="text-xs font-bold uppercase text-zinc-500 mb-1">Incl. Taxa 5% (seu lucro)</div>
+          <div className="font-['Outfit'] font-black text-2xl text-green-700">
+            + R$ {balance.platform_fee.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </div>
         </div>
         <div className="brutalist-card p-6 text-center">
