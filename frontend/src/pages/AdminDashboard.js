@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload } from "lucide-react";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio } from "lucide-react";
 import ImageUpload from "../components/ImageUpload";
+import AdminLivePanel from "../components/AdminLivePanel";
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -79,6 +80,7 @@ export default function AdminDashboard() {
     { id: "balance", label: "Saldo", icon: <Wallet size={16} /> },
     { id: "campaigns", label: "Campanhas", icon: <BarChart3 size={16} /> },
     { id: "products", label: "Loja", icon: <ShoppingBag size={16} /> },
+    { id: "live", label: "Live", icon: <Radio size={16} /> },
     { id: "gallery", label: "Galeria", icon: <Image size={16} /> },
     { id: "bio", label: "Biografia", icon: <FileText size={16} /> },
     { id: "subscribers", label: "Newsletter", icon: <Mail size={16} /> },
@@ -243,6 +245,10 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
+
+
+        {/* Live Tab */}
+        {tab === "live" && <AdminLivePanel />}
 
         {/* Products Tab */}
         {tab === "products" && (

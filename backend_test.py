@@ -929,6 +929,137 @@ class CrowdfundingAPITester:
         
         return True
 
+    def test_live_streaming_apis(self):
+        """Test live streaming functionality (NEW in iteration 7)"""
+        print("\n" + "="*50)
+        print("TESTING LIVE STREAMING APIS")
+        print("="*50)
+        
+        # Test GET /api/live/status (should work without auth)
+        success1, status_response = self.run_test(
+            "Get Live Status (Not Live)",
+            "GET",
+            "live/status",
+            200
+        )
+        
+        if success1 and isinstance(status_response, dict):
+            required_fields = ['is_live', 'title', 'viewer_count']
+            missing_fields = [field for field in required_fields if field not in status_response]
+            if missing_fields:
+                print(f"❌ Missing required fields in live status: {missing_fields}")
+                success1 = False
+            else:
+                print(f"✅ Live status fields complete:")
+                print(f"   - Is Live: {status_response.get('is_live')}")
+                print(f"   - Title: {status_response.get('title')}")
+                print(f"   - Viewer Count: {status_response.get('viewer_count')}")
+        
+        # Test POST /api/live/start (admin only)
+        start_data = {"title": "Test Live Stream"}
+        success2, start_response = self.run_test(
+            "Start Live Stream",
+            "POST",
+            "live/start",
+            200,
+            data=start_data,
+            auth_required=True
+        )
+        
+        if success2 and isinstance(start_response, dict):
+            if 'message' in start_response and 'status' in start_response:
+                print(f"✅ Live stream started: {start_response.get('message')}")
+                live_status = start_response.get('status', {})
+                if live_status.get('is_live') and live_status.get('title') == "Test Live Stream":
+                    print(f"   Live status updated correctly")
+                else:
+                    print(f"❌ Live status not updated correctly: {live_status}")
+                    success2 = False
+            else:
+                print(f"❌ Unexpected start response: {start_response}")
+                success2 = False
+        
+        # Test GET /api/live/status (should now show live)
+        success3, live_status_response = self.run_test(
+            "Get Live Status (Live)",
+            "GET",
+            "live/status",
+            200
+        )
+        
+        if success3 and isinstance(live_status_response, dict):
+            if live_status_response.get('is_live') and live_status_response.get('title') == "Test Live Stream":
+                print(f"✅ Live status correctly shows active stream")
+            else:
+                print(f"❌ Live status not showing active stream: {live_status_response}")
+                success3 = False
+        
+        # Test GET /api/live/chat (should work without auth when live)
+        success4, chat_response = self.run_test(
+            "Get Live Chat",
+            "GET",
+            "live/chat",
+            200
+        )
+        
+        if success4 and isinstance(chat_response, list):
+            print(f"✅ Live chat retrieved: {len(chat_response)} messages")
+        
+        # Test POST /api/live/chat (requires auth)
+        chat_data = {"message": "Test chat message from API test"}
+        success5, chat_post_response = self.run_test(
+            "Send Live Chat Message",
+            "POST",
+            "live/chat",
+            200,
+            data=chat_data,
+            auth_required=True
+        )
+        
+        if success5 and isinstance(chat_post_response, dict):
+            required_chat_fields = ['id', 'user_name', 'message', 'timestamp']
+            missing_chat_fields = [field for field in required_chat_fields if field not in chat_post_response]
+            if missing_chat_fields:
+                print(f"❌ Missing required fields in chat message: {missing_chat_fields}")
+                success5 = False
+            else:
+                print(f"✅ Chat message sent successfully:")
+                print(f"   - User: {chat_post_response.get('user_name')}")
+                print(f"   - Message: {chat_post_response.get('message')}")
+        
+        # Test POST /api/live/stop (admin only)
+        success6, stop_response = self.run_test(
+            "Stop Live Stream",
+            "POST",
+            "live/stop",
+            200,
+            auth_required=True
+        )
+        
+        if success6 and isinstance(stop_response, dict):
+            if 'message' in stop_response and 'encerrada' in stop_response['message'].lower():
+                print(f"✅ Live stream stopped: {stop_response.get('message')}")
+            else:
+                print(f"❌ Unexpected stop response: {stop_response}")
+                success6 = False
+        
+        # Test GET /api/live/status (should now show not live)
+        success7, final_status_response = self.run_test(
+            "Get Live Status (Stopped)",
+            "GET",
+            "live/status",
+            200
+        )
+        
+        if success7 and isinstance(final_status_response, dict):
+            if not final_status_response.get('is_live'):
+                print(f"✅ Live status correctly shows stream stopped")
+            else:
+                print(f"❌ Live status still showing active stream: {final_status_response}")
+                success7 = False
+        
+        return success1 and success2 and success3 and success4 and success5 and success6 and success7
+
     def test_checkout_status(self, session_id):
         """Test checkout status endpoint"""
         print(f"\n📊 Testing Checkout Status for Session: {session_id}...")
@@ -973,7 +1104,8 @@ def main():
         tester.test_withdrawal_success,     # NEW in iteration 4
         tester.test_checkout_creation,
         tester.test_file_upload,        # NEW in iteration 5
-        tester.test_pix_payment_methods,    # NEW in iteration 5
+        tester.test_pix_payment_methods,    # NEW in iteration 6
+        tester.test_live_streaming_apis,    # NEW in iteration 7
     ]
     
     for test in tests:

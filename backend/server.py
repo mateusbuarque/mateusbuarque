@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends, UploadFile, File, WebSocket, WebSocketDisconnect
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, Response
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -958,6 +958,110 @@ async def update_bio(data: BioUpdate, user=Depends(require_admin)):
         {"key": "biography"}, {"$set": {"key": "biography", "content": data.content, "photo_url": data.photo_url}}, upsert=True
     )
     return {"message": "Biografia atualizada"}
+
+# ─── Live Streaming ───
+live_state = {
+    "is_live": False,
+    "title": "",
+    "started_at": None,
+    "admin_ws": None,
+}
+live_viewers: list = []
+live_chat: list = []
+
+@api_router.get("/live/status")
+async def get_live_status():
+    return {
+        "is_live": live_state["is_live"],
+        "title": live_state["title"],
+        "started_at": live_state["started_at"],
+        "viewer_count": len(live_viewers),
+    }
+
+@api_router.post("/live/start")
+async def start_live(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    live_state["is_live"] = True
+    live_state["title"] = body.get("title", "Live")
+    live_state["started_at"] = datetime.now(timezone.utc).isoformat()
+    live_chat.clear()
+    return {"message": "Live iniciada", "status": live_state}
+
+@api_router.post("/live/stop")
+async def stop_live(user=Depends(require_admin)):
+    live_state["is_live"] = False
+    live_state["title"] = ""
+    live_state["started_at"] = None
+    live_state["admin_ws"] = None
+    # Notify viewers
+    for ws in live_viewers[:]:
+        try:
+            await ws.send_json({"type": "live_ended"})
+        except Exception:
+            pass
+    live_viewers.clear()
+    live_chat.clear()
+    return {"message": "Live encerrada"}
+
+@api_router.post("/live/chat")
+async def send_chat(request: Request, user=Depends(get_current_user)):
+    body = await request.json()
+    msg = {
+        "id": str(uuid.uuid4()),
+        "user_name": user.get("name", user.get("email", "Anonimo")),
+        "message": body.get("message", "")[:500],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    live_chat.append(msg)
+    if len(live_chat) > 200:
+        live_chat.pop(0)
+    # Broadcast to all viewers
+    for ws in live_viewers[:]:
+        try:
+            await ws.send_json({"type": "chat", "data": msg})
+        except Exception:
+            pass
+    return msg
+
+@api_router.get("/live/chat")
+async def get_chat():
+    return live_chat[-50:]
+
+# WebSocket for admin streaming
+@app.websocket("/ws/live/stream")
+async def ws_admin_stream(websocket: WebSocket):
+    await websocket.accept()
+    live_state["admin_ws"] = websocket
+    logger.info("Admin stream connected")
+    try:
+        while True:
+            data = await websocket.receive_bytes()
+            # Relay to all viewers
+            disconnected = []
+            for i, viewer in enumerate(live_viewers):
+                try:
+                    await viewer.send_bytes(data)
+                except Exception:
+                    disconnected.append(i)
+            for i in reversed(disconnected):
+                live_viewers.pop(i)
+    except WebSocketDisconnect:
+        logger.info("Admin stream disconnected")
+        live_state["admin_ws"] = None
+
+# WebSocket for viewers
+@app.websocket("/ws/live/watch")
+async def ws_viewer(websocket: WebSocket):
+    await websocket.accept()
+    live_viewers.append(websocket)
+    logger.info(f"Viewer connected. Total: {len(live_viewers)}")
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        if websocket in live_viewers:
+            live_viewers.remove(websocket)
+        logger.info(f"Viewer disconnected. Total: {len(live_viewers)}")
 
 # ─── Seed & Startup ───
 async def seed_admin():

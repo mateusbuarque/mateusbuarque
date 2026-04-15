@@ -1,14 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { Menu, X, LogOut, Package } from "lucide-react";
+import { Menu, X, LogOut, Package, Radio } from "lucide-react";
+import api from "../lib/api";
 
 export default function Header() {
   const { user, logout } = useAuth();
   const { settings } = useSiteSettings();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    const check = () => api.get("/live/status").then(r => setIsLive(r.data.is_live)).catch(() => {});
+    check();
+    const interval = setInterval(check, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const links = [
     { to: settings.nav_url_home || "/", label: settings.nav_label_home || "Inicio" },
@@ -16,6 +25,7 @@ export default function Header() {
     { to: settings.nav_url_store || "/loja", label: settings.nav_label_store || "Loja", isLink: true },
     { to: settings.nav_url_bio || "/#biografia", label: settings.nav_label_bio || "Biografia" },
     { to: settings.nav_url_gallery || "/#galeria", label: settings.nav_label_gallery || "Galeria" },
+    { to: "/live", label: "Live", isLink: true, isLive: true },
   ];
 
   const handleNavClick = (to) => {
@@ -48,7 +58,10 @@ export default function Header() {
         <nav className="hidden md:flex items-center gap-8">
           {links.map((l) => (
             l.isLink ? (
-              <Link key={l.to} to={l.to} className="font-['Outfit'] font-bold text-sm uppercase tracking-wider text-zinc-700 hover:text-zinc-950 transition-colors">{l.label}</Link>
+              <Link key={l.to} to={l.to} className={`font-['Outfit'] font-bold text-sm uppercase tracking-wider transition-colors flex items-center gap-1 ${l.isLive && isLive ? "text-red-600" : "text-zinc-700 hover:text-zinc-950"}`}>
+                {l.isLive && isLive && <Radio size={12} className="animate-pulse" />}
+                {l.isLive ? (isLive ? "AO VIVO" : l.label) : l.label}
+              </Link>
             ) : (
               <button key={l.to} onClick={() => handleNavClick(l.to)} className="font-['Outfit'] font-bold text-sm uppercase tracking-wider text-zinc-700 hover:text-zinc-950 transition-colors">{l.label}</button>
             )
