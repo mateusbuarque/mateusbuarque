@@ -32,8 +32,8 @@ export const productAPI = {
 };
 
 export const checkoutAPI = {
-  campaign: (data) => api.post("/checkout/campaign", { ...data, origin_url: window.location.origin }),
-  product: (data) => api.post("/checkout/product", { ...data, origin_url: window.location.origin }),
+  campaign: (data) => api.post("/checkout/campaign", data),
+  product: (data) => api.post("/checkout/product", data),
   pix: (data) => api.post("/checkout/pix", data),
   pixInfo: () => api.get("/pix-info"),
   status: (sessionId) => api.get(`/checkout/status/${sessionId}`),
@@ -100,7 +100,6 @@ export const subscriptionAPI = {
   deletePlan: (id) => api.delete(`/subscription-plans/${id}`),
   mySubscription: () => api.get("/user/subscription"),
   subscribePix: (planId) => api.post("/subscribe", { plan_id: planId }),
-  subscribeCard: (planId) => api.post("/subscribe/card", { plan_id: planId, origin_url: window.location.origin }),
 };
 
 export const liveAPI = {

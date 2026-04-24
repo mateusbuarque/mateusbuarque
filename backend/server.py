@@ -21,9 +21,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from bson import ObjectId
 
-from emergentintegrations.payments.stripe.checkout import (
-    StripeCheckout, CheckoutSessionRequest
-)
+# Stripe removed - using manual PIX payment only
 
 try:
     import resend
@@ -263,15 +261,11 @@ class BioUpdate(BaseModel):
 class CheckoutCampaignRequest(BaseModel):
     campaign_id: str
     tier_id: str
-    origin_url: str
     custom_amount: Optional[float] = None
-    payment_method: str = "card"
 
 class CheckoutProductRequest(BaseModel):
     product_id: str
     quantity: int = 1
-    origin_url: str
-    payment_method: str = "card"
 
 class PixPaymentCreate(BaseModel):
     type: str
@@ -565,9 +559,10 @@ async def process_successful_payment(tx):
 
 PIX_KEY = "mateusbpugli@gmail.com"
 PIX_KEY_TYPE = "email"
+PIX_COMPROVANTE_EMAIL = "mateuabuarquepugli@gmail.com"
 
 @api_router.post("/checkout/campaign")
-async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, user=Depends(get_current_user)):
+async def checkout_campaign(data: CheckoutCampaignRequest, user=Depends(get_current_user)):
     campaign = await db.campaigns.find_one({"id": data.campaign_id}, {"_id": 0})
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha nao encontrada")
@@ -584,38 +579,30 @@ async def checkout_campaign(data: CheckoutCampaignRequest, request: Request, use
     if amount < min_amount:
         raise HTTPException(status_code=400, detail=f"Valor minimo: R$ {min_amount:.2f}")
     
-    api_key = os.environ.get("STRIPE_API_KEY")
-    host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
-    
-    success_url = f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url = f"{data.origin_url}/campaign/{data.campaign_id}"
-    metadata = {
-        "type": "campaign", "campaign_id": data.campaign_id, "tier_id": data.tier_id,
-        "user_id": user["_id"], "user_email": user["email"], "user_name": user.get("name", ""),
-        "platform_fee_percent": str(PLATFORM_FEE_PERCENT)
-    }
-    checkout_request = CheckoutSessionRequest(
-        amount=amount, currency="brl", success_url=success_url, cancel_url=cancel_url,
-        metadata=metadata, payment_methods=["card"]
-    )
-    session = await stripe_checkout.create_checkout_session(checkout_request)
-    
+    tx_id = str(uuid.uuid4())
     transaction = {
-        "id": str(uuid.uuid4()), "session_id": session.session_id, "type": "campaign",
+        "id": tx_id, "session_id": f"pix_{tx_id}", "type": "campaign",
         "campaign_id": data.campaign_id, "tier_id": data.tier_id, "product_id": None,
         "amount": amount, "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
         "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
-        "user_name": user.get("name", ""), "payment_status": "pending",
-        "payment_method": "card",
+        "user_name": user.get("name", ""), "payment_status": "awaiting_pix",
+        "payment_method": "pix",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.payment_transactions.insert_one(transaction)
-    return {"url": session.url, "session_id": session.session_id}
+    
+    return {
+        "transaction_id": tx_id,
+        "amount": amount,
+        "pix_key": PIX_KEY,
+        "pix_key_type": PIX_KEY_TYPE,
+        "item_title": campaign["title"],
+        "comprovante_email": PIX_COMPROVANTE_EMAIL,
+        "message": f"Envie R$ {amount:.2f} via Pix para {PIX_KEY}. Apos realizar o pagamento, envie o comprovante para {PIX_COMPROVANTE_EMAIL}."
+    }
 
 @api_router.post("/checkout/product")
-async def checkout_product(data: CheckoutProductRequest, request: Request, user=Depends(get_current_user)):
+async def checkout_product(data: CheckoutProductRequest, user=Depends(get_current_user)):
     product = await db.products.find_one({"id": data.product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Produto nao encontrado")
@@ -623,38 +610,30 @@ async def checkout_product(data: CheckoutProductRequest, request: Request, user=
         raise HTTPException(status_code=400, detail="Produto indisponivel")
     
     amount = float(product["price"]) * data.quantity
-    api_key = os.environ.get("STRIPE_API_KEY")
-    host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
-    
-    success_url = f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url = f"{data.origin_url}/loja"
-    metadata = {
-        "type": "product", "product_id": data.product_id, "quantity": str(data.quantity),
-        "user_id": user["_id"], "user_email": user["email"], "user_name": user.get("name", ""),
-        "platform_fee_percent": str(PLATFORM_FEE_PERCENT)
-    }
-    checkout_request = CheckoutSessionRequest(
-        amount=amount, currency="brl", success_url=success_url, cancel_url=cancel_url,
-        metadata=metadata, payment_methods=["card"]
-    )
-    session = await stripe_checkout.create_checkout_session(checkout_request)
-    
+    tx_id = str(uuid.uuid4())
     transaction = {
-        "id": str(uuid.uuid4()), "session_id": session.session_id, "type": "product",
+        "id": tx_id, "session_id": f"pix_{tx_id}", "type": "product",
         "campaign_id": None, "tier_id": None, "product_id": data.product_id,
         "quantity": data.quantity, "amount": amount,
         "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
         "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
-        "user_name": user.get("name", ""), "payment_status": "pending",
-        "payment_method": "card",
+        "user_name": user.get("name", ""), "payment_status": "awaiting_pix",
+        "payment_method": "pix",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.payment_transactions.insert_one(transaction)
-    return {"url": session.url, "session_id": session.session_id}
+    
+    return {
+        "transaction_id": tx_id,
+        "amount": amount,
+        "pix_key": PIX_KEY,
+        "pix_key_type": PIX_KEY_TYPE,
+        "item_title": product["title"],
+        "comprovante_email": PIX_COMPROVANTE_EMAIL,
+        "message": f"Envie R$ {amount:.2f} via Pix para {PIX_KEY}. Apos realizar o pagamento, envie o comprovante para {PIX_COMPROVANTE_EMAIL}."
+    }
 
-# ─── Pix Manual Payment ───
+# ─── Pix Manual Payment (legacy route) ───
 @api_router.post("/checkout/pix")
 async def create_pix_payment(data: PixPaymentCreate, user=Depends(get_current_user)):
     amount = 0.0
@@ -707,23 +686,24 @@ async def create_pix_payment(data: PixPaymentCreate, user=Depends(get_current_us
         "pix_key": PIX_KEY,
         "pix_key_type": PIX_KEY_TYPE,
         "item_title": item_title,
-        "message": f"Envie R$ {amount:.2f} via Pix para {PIX_KEY}"
+        "comprovante_email": PIX_COMPROVANTE_EMAIL,
+        "message": f"Envie R$ {amount:.2f} via Pix para {PIX_KEY}. Apos o pagamento, envie o comprovante para {PIX_COMPROVANTE_EMAIL}."
     }
 
 @api_router.get("/pix-info")
 async def get_pix_info():
-    return {"pix_key": PIX_KEY, "pix_key_type": PIX_KEY_TYPE}
+    return {"pix_key": PIX_KEY, "pix_key_type": PIX_KEY_TYPE, "comprovante_email": PIX_COMPROVANTE_EMAIL}
 
 @api_router.post("/admin/confirm-pix")
 async def confirm_pix_payment(data: PixConfirmRequest, user=Depends(require_admin)):
     tx = await db.payment_transactions.find_one({"id": data.transaction_id}, {"_id": 0})
     if not tx:
         raise HTTPException(status_code=404, detail="Transacao nao encontrada")
-    if tx["payment_status"] != "awaiting_pix":
+    if tx["payment_status"] not in ("awaiting_pix", "pending"):
         raise HTTPException(status_code=400, detail="Transacao ja processada")
     
     await db.payment_transactions.update_one(
-        {"id": data.transaction_id}, {"$set": {"payment_status": "paid"}}
+        {"id": data.transaction_id}, {"$set": {"payment_status": "paid", "confirmed_at": datetime.now(timezone.utc).isoformat()}}
     )
     if tx.get("type") == "campaign" and tx.get("campaign_id"):
         await db.campaigns.update_one(
@@ -734,73 +714,38 @@ async def confirm_pix_payment(data: PixConfirmRequest, user=Depends(require_admi
         await db.products.update_one(
             {"id": tx["product_id"]}, {"$inc": {"sold_count": qty, "stock": -qty}}
         )
+    elif tx.get("type") == "subscription":
+        # Activate subscription when admin confirms
+        plan_id = tx.get("plan_id")
+        if plan_id:
+            plan = await db.subscription_plans.find_one({"id": plan_id}, {"_id": 0})
+            if plan:
+                now = datetime.now(timezone.utc)
+                sub = {
+                    "id": str(uuid.uuid4()),
+                    "user_id": tx["user_id"],
+                    "user_email": tx["user_email"],
+                    "user_name": tx.get("user_name", ""),
+                    "plan_id": plan["id"],
+                    "plan_name": plan["name"],
+                    "amount": plan["price"],
+                    "status": "active",
+                    "started_at": now.isoformat(),
+                    "expires_at": (now + timedelta(days=plan["duration_days"])).isoformat(),
+                    "created_at": now.isoformat()
+                }
+                await db.subscriptions.insert_one(sub)
     
     tx["payment_status"] = "paid"
     await process_successful_payment(tx)
-    return {"message": "Pagamento Pix confirmado!"}
+    return {"message": "Pagamento confirmado!"}
 
 @api_router.get("/checkout/status/{session_id}")
-async def get_checkout_status(session_id: str, request: Request):
-    api_key = os.environ.get("STRIPE_API_KEY")
-    host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
-    status = await stripe_checkout.get_checkout_status(session_id)
-    
+async def get_checkout_status(session_id: str):
     tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
-    if tx and tx["payment_status"] != "paid" and status.payment_status == "paid":
-        await db.payment_transactions.update_one(
-            {"session_id": session_id}, {"$set": {"payment_status": "paid"}}
-        )
-        if tx.get("type") == "campaign" and tx.get("campaign_id"):
-            await db.campaigns.update_one(
-                {"id": tx["campaign_id"]}, {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
-            )
-        elif tx.get("type") == "product" and tx.get("product_id"):
-            qty = tx.get("quantity", 1)
-            await db.products.update_one(
-                {"id": tx["product_id"]}, {"$inc": {"sold_count": qty, "stock": -qty}}
-            )
-        # Send email notification
-        await process_successful_payment(tx)
-    elif tx and status.payment_status != "paid":
-        await db.payment_transactions.update_one(
-            {"session_id": session_id}, {"$set": {"payment_status": status.payment_status}}
-        )
-    
-    return {"status": status.status, "payment_status": status.payment_status, "amount_total": status.amount_total, "currency": status.currency}
-
-@api_router.post("/webhook/stripe")
-async def stripe_webhook(request: Request):
-    body = await request.body()
-    signature = request.headers.get("Stripe-Signature", "")
-    api_key = os.environ.get("STRIPE_API_KEY")
-    host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
-    try:
-        webhook_response = await stripe_checkout.handle_webhook(body, signature)
-        if webhook_response.payment_status == "paid":
-            tx = await db.payment_transactions.find_one({"session_id": webhook_response.session_id})
-            if tx and tx["payment_status"] != "paid":
-                await db.payment_transactions.update_one(
-                    {"session_id": webhook_response.session_id}, {"$set": {"payment_status": "paid"}}
-                )
-                if tx.get("type") == "campaign" and tx.get("campaign_id"):
-                    await db.campaigns.update_one(
-                        {"id": tx["campaign_id"]}, {"$inc": {"raised_amount": tx["amount"], "backers_count": 1}}
-                    )
-                elif tx.get("type") == "product" and tx.get("product_id"):
-                    qty = tx.get("quantity", 1)
-                    await db.products.update_one(
-                        {"id": tx["product_id"]}, {"$inc": {"sold_count": qty, "stock": -qty}}
-                    )
-                tx_clean = {k: v for k, v in tx.items() if k != "_id"}
-                await process_successful_payment(tx_clean)
-        return {"status": "ok"}
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        return {"status": "error"}
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transacao nao encontrada")
+    return {"status": tx["payment_status"], "payment_status": tx["payment_status"], "amount_total": tx.get("amount", 0), "currency": "brl"}
 
 # ─── Admin Stats ───
 @api_router.get("/admin/stats")
@@ -1158,32 +1103,15 @@ async def subscribe_to_plan(request: Request, user=Depends(get_current_user)):
     if not plan:
         raise HTTPException(status_code=404, detail="Plano nao encontrado")
 
-    # Check if already subscribed
     existing = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"})
     if existing:
         raise HTTPException(status_code=400, detail="Voce ja possui uma assinatura ativa")
 
     now = datetime.now(timezone.utc)
-    sub = {
-        "id": str(uuid.uuid4()),
-        "user_id": user["_id"],
-        "user_email": user["email"],
-        "user_name": user.get("name", ""),
-        "plan_id": plan["id"],
-        "plan_name": plan["name"],
-        "amount": plan["price"],
-        "status": "active",
-        "started_at": now.isoformat(),
-        "expires_at": (now + timedelta(days=plan["duration_days"])).isoformat(),
-        "created_at": now.isoformat()
-    }
-    await db.subscriptions.insert_one(sub)
-    sub.pop("_id", None)
-
-    # Record payment
     tx = {
-        "id": str(uuid.uuid4()), "session_id": f"sub_{sub['id']}", "type": "subscription",
+        "id": str(uuid.uuid4()), "session_id": f"sub_pix_{str(uuid.uuid4())}", "type": "subscription",
         "campaign_id": None, "tier_id": None, "product_id": None,
+        "plan_id": plan_id,
         "amount": plan["price"], "platform_fee": round(plan["price"] * PLATFORM_FEE_PERCENT / 100, 2),
         "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
         "user_name": user.get("name", ""), "payment_status": "awaiting_pix",
@@ -1191,41 +1119,12 @@ async def subscribe_to_plan(request: Request, user=Depends(get_current_user)):
     }
     await db.payment_transactions.insert_one(tx)
 
-    return {"message": "Assinatura criada! Faca o pagamento via Pix.", "subscription": sub, "pix_key": PIX_KEY, "pix_key_type": PIX_KEY_TYPE, "amount": plan["price"]}
-
-@api_router.post("/subscribe/card")
-async def subscribe_card(request: Request, user=Depends(get_current_user)):
-    body = await request.json()
-    plan_id = body.get("plan_id")
-    origin_url = body.get("origin_url", "")
-    plan = await db.subscription_plans.find_one({"id": plan_id, "is_active": True}, {"_id": 0})
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plano nao encontrado")
-    existing = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"})
-    if existing:
-        raise HTTPException(status_code=400, detail="Voce ja possui uma assinatura ativa")
-
-    api_key = os.environ.get("STRIPE_API_KEY")
-    host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
-    success_url = f"{origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}&type=subscription&plan_id={plan_id}"
-    cancel_url = f"{origin_url}/assinatura"
-    metadata = {"type": "subscription", "plan_id": plan_id, "user_id": user["_id"], "user_email": user["email"]}
-    checkout_request = CheckoutSessionRequest(amount=plan["price"], currency="brl", success_url=success_url, cancel_url=cancel_url, metadata=metadata, payment_methods=["card"])
-    session = await stripe_checkout.create_checkout_session(checkout_request)
-
-    now = datetime.now(timezone.utc)
-    tx = {
-        "id": str(uuid.uuid4()), "session_id": session.session_id, "type": "subscription",
-        "campaign_id": None, "tier_id": None, "product_id": None,
-        "amount": plan["price"], "platform_fee": round(plan["price"] * PLATFORM_FEE_PERCENT / 100, 2),
-        "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
-        "user_name": user.get("name", ""), "payment_status": "pending",
-        "payment_method": "card", "plan_id": plan_id, "created_at": now.isoformat()
+    return {
+        "message": "Faca o pagamento via Pix e envie o comprovante.",
+        "pix_key": PIX_KEY, "pix_key_type": PIX_KEY_TYPE,
+        "amount": plan["price"],
+        "comprovante_email": PIX_COMPROVANTE_EMAIL
     }
-    await db.payment_transactions.insert_one(tx)
-    return {"url": session.url, "session_id": session.session_id}
 
 @api_router.get("/admin/subscriptions")
 async def get_all_subscriptions(user=Depends(require_admin)):

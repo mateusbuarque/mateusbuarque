@@ -79,11 +79,11 @@ export default function OrderHistory() {
                   <span className={`px-2 py-1 text-xs font-bold uppercase ${
                     order.payment_status === "paid"
                       ? "bg-green-100 text-green-800 border border-green-300"
-                      : order.payment_status === "pending"
-                        ? "bg-yellow-100 text-yellow-800 border border-yellow-300"
+                      : order.payment_status === "awaiting_pix" || order.payment_status === "pending"
+                        ? "bg-orange-100 text-orange-800 border border-orange-300"
                         : "bg-red-100 text-red-800 border border-red-300"
                   }`}>
-                    {order.payment_status === "paid" ? "Pago" : order.payment_status === "pending" ? "Pendente" : order.payment_status}
+                    {order.payment_status === "paid" ? "Pagamento confirmado" : order.payment_status === "awaiting_pix" || order.payment_status === "pending" ? "Aguardando confirmacao" : order.payment_status}
                   </span>
                 </div>
               </div>

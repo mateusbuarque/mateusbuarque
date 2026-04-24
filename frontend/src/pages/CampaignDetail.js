@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { campaignAPI, checkoutAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { Calendar, Users, Target, ArrowLeft, Truck, CreditCard, QrCode, Copy, Check } from "lucide-react";
+import { Calendar, Users, Target, ArrowLeft, Truck, QrCode, Copy, Check, Mail } from "lucide-react";
 
 export default function CampaignDetail() {
   const { id } = useParams();
@@ -31,28 +31,11 @@ export default function CampaignDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleCardPayment = async (tier) => {
-    if (!user) { navigate("/login"); return; }
-    setCheckoutLoading(tier.id + "_card");
-    try {
-      const res = await checkoutAPI.campaign({
-        campaign_id: campaign.id,
-        tier_id: tier.id,
-        custom_amount: donationAmounts[tier.id],
-        payment_method: "card",
-      });
-      if (res.data.url) window.location.href = res.data.url;
-    } catch (err) {
-      alert(err.response?.data?.detail || "Erro ao processar pagamento");
-    } finally { setCheckoutLoading(null); }
-  };
-
   const handlePixPayment = async (tier) => {
     if (!user) { navigate("/login"); return; }
-    setCheckoutLoading(tier.id + "_pix");
+    setCheckoutLoading(tier.id);
     try {
-      const res = await checkoutAPI.pix({
-        type: "campaign",
+      const res = await checkoutAPI.campaign({
         campaign_id: campaign.id,
         tier_id: tier.id,
         custom_amount: donationAmounts[tier.id],
@@ -107,7 +90,6 @@ export default function CampaignDetail() {
 
           <div className="col-span-12 lg:col-span-4">
             <div className="lg:sticky lg:top-24 space-y-6">
-              {/* Stats */}
               <div className="brutalist-card p-6" data-testid="campaign-stats">
                 <div className="brutalist-progress mb-3"><div className="brutalist-progress-fill" style={{ width: `${progress}%` }} /></div>
                 <div className="flex justify-between mb-4">
@@ -124,7 +106,6 @@ export default function CampaignDetail() {
                 </div>
               </div>
 
-              {/* Login prompt */}
               {!user && (
                 <div className="brutalist-card p-6 bg-[#FFDE00]">
                   <p className="font-bold text-sm text-zinc-950 uppercase mb-3">Faca login para apoiar esta campanha</p>
@@ -132,7 +113,6 @@ export default function CampaignDetail() {
                 </div>
               )}
 
-              {/* Tiers */}
               <h4 className="font-['Outfit'] font-bold text-sm uppercase tracking-wider">Recompensas / Doacao</h4>
               {campaign.tiers && campaign.tiers.length > 0 ? (
                 campaign.tiers.map((tier, i) => {
@@ -153,7 +133,6 @@ export default function CampaignDetail() {
                       )}
                       <p className="text-xs text-zinc-400 mb-3">Entrega: {tier.delivery_date}</p>
 
-                      {/* Donation amount */}
                       <div className="mb-4">
                         <label className="font-bold text-xs uppercase tracking-wider text-zinc-500 block mb-1">
                           Valor da doacao (min R$ {minDonation.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
@@ -174,27 +153,15 @@ export default function CampaignDetail() {
                         )}
                       </div>
 
-                      {/* Payment buttons */}
-                      <div className="space-y-2">
-                        <button
-                          onClick={() => handleCardPayment(tier)}
-                          disabled={!!checkoutLoading}
-                          className="brutalist-btn w-full text-sm flex items-center justify-center gap-2"
-                          data-testid={`tier-card-btn-${i}`}
-                        >
-                          <CreditCard size={16} />
-                          {checkoutLoading === tier.id + "_card" ? "Processando..." : settings.btn_label_buy_card || "Pagar com Cartao"}
-                        </button>
-                        <button
-                          onClick={() => handlePixPayment(tier)}
-                          disabled={!!checkoutLoading}
-                          className="brutalist-btn-dark w-full text-sm flex items-center justify-center gap-2"
-                          data-testid={`tier-pix-btn-${i}`}
-                        >
-                          <QrCode size={16} />
-                          {checkoutLoading === tier.id + "_pix" ? "Gerando..." : settings.btn_label_buy_pix || "Pagar com Pix"}
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handlePixPayment(tier)}
+                        disabled={!!checkoutLoading}
+                        className="brutalist-btn w-full text-sm flex items-center justify-center gap-2"
+                        data-testid={`tier-pix-btn-${i}`}
+                      >
+                        <QrCode size={16} />
+                        {checkoutLoading === tier.id ? "Gerando..." : settings.btn_label_buy_pix || "Pagar com Pix"}
+                      </button>
                     </div>
                   );
                 })
@@ -214,7 +181,7 @@ export default function CampaignDetail() {
           <div className="brutalist-card bg-white w-full max-w-md p-6 md:p-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-['Outfit'] font-black text-xl uppercase">Pagar com Pix</h2>
-              <button onClick={() => setPixModal(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
+              <button onClick={() => setPixModal(null)} className="p-2 hover:bg-zinc-100" data-testid="pix-modal-close"><span className="text-xl">&times;</span></button>
             </div>
 
             <div className="text-center mb-6">
@@ -249,14 +216,26 @@ export default function CampaignDetail() {
                 <li>2. Escolha pagar com Pix</li>
                 <li>3. Cole a chave acima</li>
                 <li>4. Envie R$ {(pixModal.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</li>
-                <li>5. Pronto! O admin confirmara seu pagamento</li>
               </ol>
             </div>
 
-            <p className="text-xs text-zinc-400 text-center">Apos o envio, o administrador confirmara o pagamento e seu apoio sera registrado.</p>
+            <div className="bg-red-50 border-2 border-red-400 p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <Mail size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-red-800 mb-1">Envie o comprovante por e-mail:</p>
+                  <p className="text-sm text-red-700 font-bold break-all" data-testid="comprovante-email">{pixModal.comprovante_email || "mateuabuarquepugli@gmail.com"}</p>
+                  <p className="text-xs text-red-600 mt-2">Seu pedido sera confirmado manualmente apos analise do comprovante.</p>
+                </div>
+              </div>
+            </div>
 
-            <button onClick={() => { setPixModal(null); navigate("/meus-pedidos"); }} className="brutalist-btn w-full mt-4 text-sm" data-testid="pix-done-btn">
-              Ja fiz o Pix
+            <p className="text-xs text-zinc-500 text-center mb-4 font-bold">
+              Status do pedido: Aguardando confirmacao de pagamento
+            </p>
+
+            <button onClick={() => { setPixModal(null); navigate("/meus-pedidos"); }} className="brutalist-btn w-full text-sm" data-testid="pix-done-btn">
+              Ja fiz o Pix e enviei o comprovante
             </button>
           </div>
         </div>

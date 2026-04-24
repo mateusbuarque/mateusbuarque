@@ -188,27 +188,27 @@ export default function AdminDashboard() {
               })}
               {campaigns.length === 0 && <div className="brutalist-card p-8 text-center"><p className="text-zinc-500 font-bold uppercase">Nenhuma campanha criada</p></div>}
             </div>
-            {/* Pix Pending */}
-            {stats && stats.transactions && stats.transactions.filter(t => t.payment_status === "awaiting_pix").length > 0 && (
+            {/* Pedidos Aguardando Confirmacao */}
+            {stats && stats.transactions && stats.transactions.filter(t => t.payment_status === "awaiting_pix" || t.payment_status === "pending").length > 0 && (
               <div className="mt-8">
                 <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-4 flex items-center gap-2">
                   <span className="w-3 h-3 bg-[#FFDE00] border-2 border-zinc-950 inline-block animate-pulse" />
-                  Pix Aguardando Confirmacao
+                  Aguardando Confirmacao de Pagamento
                 </h3>
                 <div className="space-y-3">
-                  {stats.transactions.filter(t => t.payment_status === "awaiting_pix").map((tx) => (
+                  {stats.transactions.filter(t => t.payment_status === "awaiting_pix" || t.payment_status === "pending").map((tx) => (
                     <div key={tx.id} className="brutalist-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 border-l-4 border-l-[#FFDE00]" data-testid={`pix-pending-${tx.id}`}>
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-zinc-950">{tx.user_name || tx.user_email}</div>
                         <div className="text-xs text-zinc-500 mt-1">
-                          {tx.type === "campaign" ? "Campanha" : "Loja"} - {new Date(tx.created_at).toLocaleDateString("pt-BR")} {new Date(tx.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                          {tx.payment_method === "pix" && <span className="ml-2 px-2 py-0.5 bg-zinc-100 text-zinc-600 text-xs font-bold uppercase">Pix</span>}
+                          {tx.type === "campaign" ? "Campanha" : tx.type === "subscription" ? "Assinatura" : "Loja"} - {new Date(tx.created_at).toLocaleDateString("pt-BR")} {new Date(tx.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold uppercase">Aguardando comprovante</span>
                         </div>
                       </div>
                       <div className="font-['Outfit'] font-black text-xl">R$ {(tx.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
                       <button
                         onClick={async () => {
-                          if (!window.confirm(`Confirmar recebimento de R$ ${tx.amount.toFixed(2)} via Pix de ${tx.user_name || tx.user_email}?`)) return;
+                          if (!window.confirm(`Confirmar pagamento de R$ ${tx.amount.toFixed(2)} de ${tx.user_name || tx.user_email}?`)) return;
                           try {
                             await adminPixAPI.confirm(tx.id);
                             loadData();
@@ -217,7 +217,7 @@ export default function AdminDashboard() {
                         className="brutalist-btn text-sm py-2 px-4 whitespace-nowrap"
                         data-testid={`confirm-pix-${tx.id}`}
                       >
-                        Confirmar Pix
+                        Confirmar Pagamento
                       </button>
                     </div>
                   ))}
@@ -248,7 +248,7 @@ export default function AdminDashboard() {
                           <td className="p-3 text-zinc-800 font-medium">{tx.user_name || tx.user_email || "-"}</td>
                           <td className="p-3 font-bold">R$ {(tx.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
                           <td className="p-3 text-zinc-500">R$ {(tx.platform_fee || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                          <td className="p-3"><span className={`px-2 py-1 text-xs font-bold uppercase ${tx.payment_status === "paid" ? "bg-green-100 text-green-800" : tx.payment_status === "awaiting_pix" ? "bg-orange-100 text-orange-800" : "bg-yellow-100 text-yellow-800"}`}>{tx.payment_status === "awaiting_pix" ? "Pix pendente" : tx.payment_status}</span></td>
+                          <td className="p-3"><span className={`px-2 py-1 text-xs font-bold uppercase ${tx.payment_status === "paid" ? "bg-green-100 text-green-800" : tx.payment_status === "awaiting_pix" ? "bg-orange-100 text-orange-800" : "bg-yellow-100 text-yellow-800"}`}>{tx.payment_status === "paid" ? "Pagamento confirmado" : tx.payment_status === "awaiting_pix" ? "Aguardando confirmacao" : "Pendente"}</span></td>
                         </tr>
                       ))}
                     </tbody>
@@ -607,7 +607,6 @@ function SiteSettingsTab({ config, onSave }) {
     btn_label_hero_primary: config?.btn_label_hero_primary || "Ver Campanhas",
     btn_label_hero_secondary: config?.btn_label_hero_secondary || "Sobre Edegar",
     btn_label_support: config?.btn_label_support || "Apoiar",
-    btn_label_buy_card: config?.btn_label_buy_card || "Pagar com Cartao",
     btn_label_buy_pix: config?.btn_label_buy_pix || "Pagar com Pix",
     header_icon_url: config?.header_icon_url || "",
     heading_color: config?.heading_color || "#09090B",

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { productAPI, checkoutAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { ShoppingBag, CreditCard, QrCode, Copy, Check } from "lucide-react";
+import { ShoppingBag, QrCode, Copy, Check, Mail } from "lucide-react";
 
 export default function StorePage() {
   const [products, setProducts] = useState([]);
@@ -22,21 +22,11 @@ export default function StorePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleBuyCard = async (product) => {
-    if (!user) { navigate("/login"); return; }
-    setCheckoutLoading(product.id + "_card");
-    try {
-      const res = await checkoutAPI.product({ product_id: product.id, quantity: 1 });
-      if (res.data.url) window.location.href = res.data.url;
-    } catch (err) { alert(err.response?.data?.detail || "Erro"); }
-    finally { setCheckoutLoading(null); }
-  };
-
   const handleBuyPix = async (product) => {
     if (!user) { navigate("/login"); return; }
-    setCheckoutLoading(product.id + "_pix");
+    setCheckoutLoading(product.id);
     try {
-      const res = await checkoutAPI.pix({ type: "product", product_id: product.id, quantity: 1 });
+      const res = await checkoutAPI.product({ product_id: product.id, quantity: 1 });
       setPixModal(res.data);
     } catch (err) { alert(err.response?.data?.detail || "Erro"); }
     finally { setCheckoutLoading(null); }
@@ -83,26 +73,15 @@ export default function StorePage() {
                       <span className="text-xs font-bold text-red-600 uppercase">Ultimas {product.stock}</span>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => handleBuyCard(product)}
-                      disabled={!!checkoutLoading || product.stock <= 0}
-                      className="brutalist-btn w-full flex items-center justify-center gap-2 text-sm"
-                      data-testid={`buy-card-${i}`}
-                    >
-                      <CreditCard size={16} />
-                      {checkoutLoading === product.id + "_card" ? "Processando..." : product.stock <= 0 ? "Esgotado" : (settings.btn_label_buy_card || "Cartao")}
-                    </button>
-                    <button
-                      onClick={() => handleBuyPix(product)}
-                      disabled={!!checkoutLoading || product.stock <= 0}
-                      className="brutalist-btn-dark w-full flex items-center justify-center gap-2 text-sm"
-                      data-testid={`buy-pix-${i}`}
-                    >
-                      <QrCode size={16} />
-                      {checkoutLoading === product.id + "_pix" ? "Gerando..." : (settings.btn_label_buy_pix || "Pix")}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleBuyPix(product)}
+                    disabled={!!checkoutLoading || product.stock <= 0}
+                    className="brutalist-btn w-full flex items-center justify-center gap-2 text-sm"
+                    data-testid={`buy-pix-${i}`}
+                  >
+                    <QrCode size={16} />
+                    {checkoutLoading === product.id ? "Gerando..." : product.stock <= 0 ? "Esgotado" : (settings.btn_label_buy_pix || "Pagar com Pix")}
+                  </button>
                   {!user && (
                     <p className="text-xs text-zinc-400 text-center mt-2">
                       <Link to="/login" className="underline hover:text-zinc-700">Faca login</Link> para comprar
@@ -127,7 +106,7 @@ export default function StorePage() {
           <div className="brutalist-card bg-white w-full max-w-md p-6 md:p-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-['Outfit'] font-black text-xl uppercase">Pagar com Pix</h2>
-              <button onClick={() => setPixModal(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
+              <button onClick={() => setPixModal(null)} className="p-2 hover:bg-zinc-100" data-testid="pix-modal-close"><span className="text-xl">&times;</span></button>
             </div>
             <div className="text-center mb-6">
               <div className="w-20 h-20 bg-[#FFDE00] border-2 border-zinc-950 mx-auto flex items-center justify-center mb-4">
@@ -140,7 +119,7 @@ export default function StorePage() {
               <p className="text-xs font-bold uppercase text-zinc-500 mb-2">Chave Pix ({pixModal.pix_key_type})</p>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-zinc-950 text-lg flex-1 break-all">{pixModal.pix_key}</span>
-                <button onClick={copyPixKey} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100 flex-shrink-0">
+                <button onClick={copyPixKey} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100 flex-shrink-0" data-testid="copy-pix-key-btn">
                   {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
                 </button>
               </div>
@@ -152,10 +131,22 @@ export default function StorePage() {
                 <li>2. Escolha pagar com Pix</li>
                 <li>3. Cole a chave acima</li>
                 <li>4. Envie R$ {(pixModal.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</li>
-                <li>5. Admin confirmara seu pagamento</li>
               </ol>
             </div>
-            <button onClick={() => { setPixModal(null); navigate("/meus-pedidos"); }} className="brutalist-btn w-full mt-2 text-sm">Ja fiz o Pix</button>
+            <div className="bg-red-50 border-2 border-red-400 p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <Mail size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-red-800 mb-1">Envie o comprovante por e-mail:</p>
+                  <p className="text-sm text-red-700 font-bold break-all" data-testid="comprovante-email">{pixModal.comprovante_email || "mateuabuarquepugli@gmail.com"}</p>
+                  <p className="text-xs text-red-600 mt-2">Seu pedido sera confirmado manualmente apos analise do comprovante.</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-zinc-500 text-center mb-4 font-bold">
+              Status do pedido: Aguardando confirmacao de pagamento
+            </p>
+            <button onClick={() => { setPixModal(null); navigate("/meus-pedidos"); }} className="brutalist-btn w-full text-sm" data-testid="pix-done-btn">Ja fiz o Pix e enviei o comprovante</button>
           </div>
         </div>
       )}

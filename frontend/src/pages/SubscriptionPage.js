@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { subscriptionAPI, checkoutAPI } from "../lib/api";
+import { subscriptionAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { Crown, Check, CreditCard, QrCode, Copy } from "lucide-react";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { Crown, Check, QrCode, Copy, Mail } from "lucide-react";
 
 export default function SubscriptionPage() {
   const { user } = useAuth();
@@ -30,20 +28,10 @@ export default function SubscriptionPage() {
 
   const handleSubscribePix = async (plan) => {
     if (!user) { navigate("/login"); return; }
-    setProcessing(plan.id + "_pix");
+    setProcessing(plan.id);
     try {
       const res = await subscriptionAPI.subscribePix(plan.id);
       setPixModal({ ...res.data, plan_name: plan.name });
-    } catch (err) { alert(err.response?.data?.detail || "Erro"); }
-    finally { setProcessing(null); }
-  };
-
-  const handleSubscribeCard = async (plan) => {
-    if (!user) { navigate("/login"); return; }
-    setProcessing(plan.id + "_card");
-    try {
-      const res = await subscriptionAPI.subscribeCard(plan.id);
-      if (res.data.url) window.location.href = res.data.url;
     } catch (err) { alert(err.response?.data?.detail || "Erro"); }
     finally { setProcessing(null); }
   };
@@ -93,14 +81,9 @@ export default function SubscriptionPage() {
                 {mySub?.is_subscribed ? (
                   <div className="text-center text-sm font-bold text-green-600 py-3">Ja assinante</div>
                 ) : (
-                  <div className="space-y-2">
-                    <button onClick={() => handleSubscribeCard(plan)} disabled={!!processing} className="brutalist-btn w-full text-sm flex items-center justify-center gap-2" data-testid={`plan-card-btn-${i}`}>
-                      <CreditCard size={16} /> {processing === plan.id + "_card" ? "..." : "Cartao"}
-                    </button>
-                    <button onClick={() => handleSubscribePix(plan)} disabled={!!processing} className="brutalist-btn-dark w-full text-sm flex items-center justify-center gap-2" data-testid={`plan-pix-btn-${i}`}>
-                      <QrCode size={16} /> {processing === plan.id + "_pix" ? "..." : "Pix"}
-                    </button>
-                  </div>
+                  <button onClick={() => handleSubscribePix(plan)} disabled={!!processing} className="brutalist-btn w-full text-sm flex items-center justify-center gap-2" data-testid={`plan-pix-btn-${i}`}>
+                    <QrCode size={16} /> {processing === plan.id ? "Processando..." : "Assinar via Pix"}
+                  </button>
                 )}
               </div>
             ))}
@@ -113,11 +96,11 @@ export default function SubscriptionPage() {
       </div>
 
       {pixModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-testid="pix-modal">
           <div className="brutalist-card bg-white w-full max-w-md p-6 md:p-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-['Outfit'] font-black text-xl uppercase">Assinar via Pix</h2>
-              <button onClick={() => setPixModal(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
+              <button onClick={() => setPixModal(null)} className="p-2 hover:bg-zinc-100" data-testid="pix-modal-close"><span className="text-xl">&times;</span></button>
             </div>
             <div className="text-center mb-4">
               <p className="font-['Outfit'] font-black text-3xl">R$ {(pixModal.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
@@ -127,16 +110,34 @@ export default function SubscriptionPage() {
               <p className="text-xs font-bold uppercase text-zinc-500 mb-2">Chave Pix</p>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-lg flex-1 break-all">{pixModal.pix_key}</span>
-                <button onClick={() => { navigator.clipboard.writeText(pixModal.pix_key); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100">
+                <button onClick={() => { navigator.clipboard.writeText(pixModal.pix_key); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" data-testid="copy-pix-key-btn">
                   {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
                 </button>
               </div>
             </div>
             {copied && <p className="text-green-600 text-sm font-bold text-center mb-4">Copiado!</p>}
             <div className="bg-[#FFDE00] border-2 border-zinc-950 p-4 mb-4">
-              <p className="text-sm font-bold">Apos pagar, o admin confirmara e sua assinatura sera ativada!</p>
+              <ol className="space-y-2 text-sm font-bold text-zinc-950">
+                <li>1. Abra o app do seu banco</li>
+                <li>2. Escolha pagar com Pix</li>
+                <li>3. Cole a chave acima</li>
+                <li>4. Envie o valor</li>
+              </ol>
             </div>
-            <button onClick={() => { setPixModal(null); navigate("/meus-pedidos"); }} className="brutalist-btn w-full text-sm">Ja fiz o Pix</button>
+            <div className="bg-red-50 border-2 border-red-400 p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <Mail size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-red-800 mb-1">Envie o comprovante por e-mail:</p>
+                  <p className="text-sm text-red-700 font-bold break-all" data-testid="comprovante-email">{pixModal.comprovante_email || "mateuabuarquepugli@gmail.com"}</p>
+                  <p className="text-xs text-red-600 mt-2">Sua assinatura sera ativada manualmente apos analise do comprovante.</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-zinc-500 text-center mb-4 font-bold">
+              Status: Aguardando confirmacao de pagamento
+            </p>
+            <button onClick={() => { setPixModal(null); navigate("/meus-pedidos"); }} className="brutalist-btn w-full text-sm" data-testid="pix-done-btn">Ja fiz o Pix e enviei o comprovante</button>
           </div>
         </div>
       )}
