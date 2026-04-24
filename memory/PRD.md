@@ -33,6 +33,7 @@ Criar um site profissional para o comediante Edegar Agostinho vender seus livros
 - [x] Configurações básicas do site (cores, ícone, labels)
 - [x] CORS & Secure Cookie fixes para produção
 - [x] Deploy readiness fixes (CORS env var, APP_NAME env var)
+- [x] DynamicCORSMiddleware para suportar qualquer domínio (produção/preview/customizado)
 
 ## Backlog Priorizado
 ### P0

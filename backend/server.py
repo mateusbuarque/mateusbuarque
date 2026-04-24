@@ -1482,19 +1482,38 @@ async def shutdown_db_client():
 
 app.include_router(api_router)
 
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_URL", "")
-cors_origins_env = os.environ.get("CORS_ORIGINS", "")
-if cors_origins_env and cors_origins_env != "*":
-    cors_origins = [o.strip() for o in cors_origins_env.split(",")]
-elif FRONTEND_ORIGIN:
-    cors_origins = [FRONTEND_ORIGIN, "http://localhost:3000"]
-else:
-    cors_origins = ["http://localhost:3000"]
+cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
+allow_all = cors_origins_env.strip() == "*"
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if allow_all:
+    # Dynamic origin reflection: mirrors the requesting Origin so cookies work
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import Response as StarletteResponse
+
+    class DynamicCORSMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            origin = request.headers.get("origin", "")
+            if request.method == "OPTIONS":
+                resp = StarletteResponse(status_code=200)
+            else:
+                resp = await call_next(request)
+            if origin:
+                resp.headers["Access-Control-Allow-Origin"] = origin
+            else:
+                resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+            resp.headers["Access-Control-Max-Age"] = "3600"
+            return resp
+
+    app.add_middleware(DynamicCORSMiddleware)
+else:
+    cors_origins = [o.strip() for o in cors_origins_env.split(",")]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
