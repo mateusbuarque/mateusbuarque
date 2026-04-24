@@ -1482,8 +1482,14 @@ async def shutdown_db_client():
 
 app.include_router(api_router)
 
-cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
-cors_origins = cors_origins_env if cors_origins_env == "*" else [o.strip() for o in cors_origins_env.split(",")]
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_URL", "")
+cors_origins_env = os.environ.get("CORS_ORIGINS", "")
+if cors_origins_env and cors_origins_env != "*":
+    cors_origins = [o.strip() for o in cors_origins_env.split(",")]
+elif FRONTEND_ORIGIN:
+    cors_origins = [FRONTEND_ORIGIN, "http://localhost:3000"]
+else:
+    cors_origins = ["http://localhost:3000"]
 
 app.add_middleware(
     CORSMiddleware,
