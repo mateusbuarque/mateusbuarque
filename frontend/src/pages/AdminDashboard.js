@@ -613,6 +613,22 @@ function SiteSettingsTab({ config, onSave }) {
     subtitle_color: config?.subtitle_color || "#52525B",
     link_color: config?.link_color || "#3F3F46",
     custom_domain: config?.custom_domain || "",
+    footer_text: config?.footer_text || "Todos os direitos reservados.",
+    section_title_campaigns: config?.section_title_campaigns || "Campanhas",
+    section_title_products: config?.section_title_products || "Projetos & Produtos",
+    section_title_bio: config?.section_title_bio || "Biografia",
+    section_title_gallery: config?.section_title_gallery || "Galeria",
+    social_instagram: config?.social_instagram || "",
+    social_youtube: config?.social_youtube || "",
+    social_tiktok: config?.social_tiktok || "",
+    social_twitter: config?.social_twitter || "",
+    social_facebook: config?.social_facebook || "",
+    nav_label_live: config?.nav_label_live || "Live",
+    nav_label_videos: config?.nav_label_videos || "Videos",
+    nav_label_subscription: config?.nav_label_subscription || "Assinatura",
+    nav_url_live: config?.nav_url_live || "/live",
+    nav_url_videos: config?.nav_url_videos || "/videos",
+    nav_url_subscription: config?.nav_url_subscription || "/assinatura",
   });
   const [saving, setSaving] = useState(false);
 
@@ -728,15 +744,18 @@ function SiteSettingsTab({ config, onSave }) {
             { labelKey: "nav_label_store", urlKey: "nav_url_store", name: "Loja" },
             { labelKey: "nav_label_bio", urlKey: "nav_url_bio", name: "Biografia" },
             { labelKey: "nav_label_gallery", urlKey: "nav_url_gallery", name: "Galeria" },
+            { labelKey: "nav_label_live", urlKey: "nav_url_live", name: "Live" },
+            { labelKey: "nav_label_videos", urlKey: "nav_url_videos", name: "Videos" },
+            { labelKey: "nav_label_subscription", urlKey: "nav_url_subscription", name: "Assinatura" },
           ].map(({ labelKey, urlKey, name }) => (
             <div key={labelKey} className="grid grid-cols-2 gap-3">
               <div>
                 <label className="font-bold text-xs uppercase tracking-wider text-zinc-500 block mb-1">Nome: {name}</label>
-                <input type="text" value={form[labelKey]} onChange={(e) => setForm({ ...form, [labelKey]: e.target.value })} className="brutalist-input text-sm" />
+                <input type="text" value={form[labelKey] || ""} onChange={(e) => setForm({ ...form, [labelKey]: e.target.value })} className="brutalist-input text-sm" />
               </div>
               <div>
                 <label className="font-bold text-xs uppercase tracking-wider text-zinc-500 block mb-1">URL</label>
-                <input type="text" value={form[urlKey]} onChange={(e) => setForm({ ...form, [urlKey]: e.target.value })} className="brutalist-input text-sm" placeholder="/ ou /#secao ou https://..." />
+                <input type="text" value={form[urlKey] || ""} onChange={(e) => setForm({ ...form, [urlKey]: e.target.value })} className="brutalist-input text-sm" placeholder="/ ou /#secao ou https://..." />
               </div>
             </div>
           ))}
@@ -759,12 +778,66 @@ function SiteSettingsTab({ config, onSave }) {
             <input type="text" value={form.btn_label_support} onChange={(e) => setForm({ ...form, btn_label_support: e.target.value })} className="brutalist-input text-sm" />
           </div>
           <div>
-            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Botao Pagar Cartao</label>
-            <input type="text" value={form.btn_label_buy_card} onChange={(e) => setForm({ ...form, btn_label_buy_card: e.target.value })} className="brutalist-input text-sm" />
-          </div>
-          <div>
             <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Botao Pagar Pix</label>
             <input type="text" value={form.btn_label_buy_pix} onChange={(e) => setForm({ ...form, btn_label_buy_pix: e.target.value })} className="brutalist-input text-sm" />
+          </div>
+        </div>
+      </div>
+
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Titulos das Secoes</h3>
+        <p className="text-xs text-zinc-500 mb-4">Mude os titulos que aparecem em cada secao do site</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Secao Campanhas</label>
+            <input type="text" value={form.section_title_campaigns} onChange={(e) => setForm({ ...form, section_title_campaigns: e.target.value })} className="brutalist-input text-sm" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Secao Produtos</label>
+            <input type="text" value={form.section_title_products} onChange={(e) => setForm({ ...form, section_title_products: e.target.value })} className="brutalist-input text-sm" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Secao Biografia</label>
+            <input type="text" value={form.section_title_bio} onChange={(e) => setForm({ ...form, section_title_bio: e.target.value })} className="brutalist-input text-sm" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Secao Galeria</label>
+            <input type="text" value={form.section_title_gallery} onChange={(e) => setForm({ ...form, section_title_gallery: e.target.value })} className="brutalist-input text-sm" />
+          </div>
+        </div>
+      </div>
+
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Rodape</h3>
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Texto do Rodape</label>
+          <input type="text" value={form.footer_text} onChange={(e) => setForm({ ...form, footer_text: e.target.value })} className="brutalist-input" data-testid="settings-footer-text" />
+        </div>
+      </div>
+
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Redes Sociais</h3>
+        <p className="text-xs text-zinc-500 mb-4">Cole os links das suas redes sociais. Deixe vazio para ocultar.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Instagram</label>
+            <input type="text" value={form.social_instagram} onChange={(e) => setForm({ ...form, social_instagram: e.target.value })} className="brutalist-input text-sm" placeholder="https://instagram.com/seu_perfil" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">YouTube</label>
+            <input type="text" value={form.social_youtube} onChange={(e) => setForm({ ...form, social_youtube: e.target.value })} className="brutalist-input text-sm" placeholder="https://youtube.com/@seu_canal" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">TikTok</label>
+            <input type="text" value={form.social_tiktok} onChange={(e) => setForm({ ...form, social_tiktok: e.target.value })} className="brutalist-input text-sm" placeholder="https://tiktok.com/@seu_perfil" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Twitter / X</label>
+            <input type="text" value={form.social_twitter} onChange={(e) => setForm({ ...form, social_twitter: e.target.value })} className="brutalist-input text-sm" placeholder="https://x.com/seu_perfil" />
+          </div>
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Facebook</label>
+            <input type="text" value={form.social_facebook} onChange={(e) => setForm({ ...form, social_facebook: e.target.value })} className="brutalist-input text-sm" placeholder="https://facebook.com/sua_pagina" />
           </div>
         </div>
       </div>

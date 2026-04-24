@@ -314,6 +314,22 @@ class SiteSettingsUpdate(BaseModel):
     link_color: Optional[str] = None
     showcase_images: Optional[list] = None
     custom_domain: Optional[str] = None
+    footer_text: Optional[str] = None
+    section_title_campaigns: Optional[str] = None
+    section_title_products: Optional[str] = None
+    section_title_bio: Optional[str] = None
+    section_title_gallery: Optional[str] = None
+    social_instagram: Optional[str] = None
+    social_youtube: Optional[str] = None
+    social_tiktok: Optional[str] = None
+    social_twitter: Optional[str] = None
+    social_facebook: Optional[str] = None
+    nav_label_live: Optional[str] = None
+    nav_label_videos: Optional[str] = None
+    nav_label_subscription: Optional[str] = None
+    nav_url_live: Optional[str] = None
+    nav_url_videos: Optional[str] = None
+    nav_url_subscription: Optional[str] = None
 
 class WithdrawRequest(BaseModel):
     amount: float
@@ -355,7 +371,23 @@ DEFAULT_SITE_SETTINGS = {
     "subtitle_color": "#52525B",
     "link_color": "#3F3F46",
     "showcase_images": [],
-    "custom_domain": ""
+    "custom_domain": "",
+    "footer_text": "Todos os direitos reservados.",
+    "section_title_campaigns": "Campanhas",
+    "section_title_products": "Projetos & Produtos",
+    "section_title_bio": "Biografia",
+    "section_title_gallery": "Galeria",
+    "social_instagram": "",
+    "social_youtube": "",
+    "social_tiktok": "",
+    "social_twitter": "",
+    "social_facebook": "",
+    "nav_label_live": "Live",
+    "nav_label_videos": "Videos",
+    "nav_label_subscription": "Assinatura",
+    "nav_url_live": "/live",
+    "nav_url_videos": "/videos",
+    "nav_url_subscription": "/assinatura"
 }
 
 # ─── Auth Routes ───
@@ -1301,7 +1333,7 @@ async def get_chat():
     return live_chat[-50:]
 
 # WebSocket for admin streaming
-@app.websocket("/ws/live/stream")
+@app.websocket("/api/ws/live/stream")
 async def ws_admin_stream(websocket: WebSocket):
     await websocket.accept()
     live_state["admin_ws"] = websocket
@@ -1323,7 +1355,7 @@ async def ws_admin_stream(websocket: WebSocket):
         live_state["admin_ws"] = None
 
 # WebSocket for viewers
-@app.websocket("/ws/live/watch")
+@app.websocket("/api/ws/live/watch")
 async def ws_viewer(websocket: WebSocket):
     await websocket.accept()
     live_viewers.append(websocket)

@@ -1,0 +1,107 @@
+{
+  "summary": "Completed testing of Site Settings expansion and WebSocket route changes (iteration 9). All new site settings fields are working correctly. WebSocket routes are defined at /api/ws/live/stream and /api/ws/live/watch. Admin Live Panel has corrected OBS Virtual Camera instructions. Frontend Config. Site tab shows all 8 sections.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "GET /api/site-settings returns all new fields (footer_text, social_*, section_title_*, nav_label_live/videos/subscription)",
+    "PUT /api/site-settings accepts and persists new fields",
+    "PUT /api/site-settings requires admin authentication (401)",
+    "WebSocket routes defined at /api/ws/live/stream and /api/ws/live/watch",
+    "GET /api/live/status returns correct structure (is_live, title, viewer_count, subscribers_only)",
+    "Admin login works with correct credentials",
+    "Admin dashboard loads successfully",
+    "Admin Config. Site tab shows 'Identidade do Site' section",
+    "Admin Config. Site tab shows 'Cores' section",
+    "Admin Config. Site tab shows 'Textos do Site' section",
+    "Admin Config. Site tab shows 'Menu de Navegacao' section with Live, Videos, Assinatura entries",
+    "Admin Config. Site tab shows 'Textos dos Botoes' section (no 'Botao Pagar Cartao')",
+    "Admin Config. Site tab shows 'Titulos das Secoes' section (Campanhas, Produtos, Biografia, Galeria)",
+    "Admin Config. Site tab shows 'Rodape' section with footer text field",
+    "Admin Config. Site tab shows 'Redes Sociais' section (Instagram, YouTube, TikTok, Twitter/X, Facebook)",
+    "Admin Live Panel shows Virtual Camera instructions",
+    "Admin Live Panel shows 'Ferramentas > Iniciar Camera Virtual' step",
+    "Admin Live Panel shows 'OBS Virtual Camera' selection instruction",
+    "Admin Live Panel has NO hardcoded RTMP URL",
+    "Admin Live Panel has NO stream key reference",
+    "Frontend LivePage.js uses /api/ws/live/watch WebSocket path",
+    "Frontend AdminLivePanel.js uses /api/ws/live/stream WebSocket path",
+    "Live page shows 'Nenhuma live no momento' when not live"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_site_settings_and_websocket.py",
+    "/app/test_reports/pytest/pytest_results_iteration9.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_site_settings_and_websocket.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_email": "mateusbpugli@gmail.com",
+    "admin_password": "Mateus Buarque 1101"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Site settings expansion is complete with all new fields (footer_text, section_title_*, social_*, nav_label_live/videos/subscription). WebSocket routes are at /api/ws/live/stream (admin) and /api/ws/live/watch (viewers). OBS instructions use Virtual Camera method, no RTMP/stream key. Stripe was removed in previous iteration - only PIX payments.",
+  "verified_features": {
+    "site_settings_expansion": {
+      "new_fields": [
+        "footer_text",
+        "section_title_campaigns",
+        "section_title_products",
+        "section_title_bio",
+        "section_title_gallery",
+        "social_instagram",
+        "social_youtube",
+        "social_tiktok",
+        "social_twitter",
+        "social_facebook",
+        "nav_label_live",
+        "nav_label_videos",
+        "nav_label_subscription",
+        "nav_url_live",
+        "nav_url_videos",
+        "nav_url_subscription"
+      ],
+      "admin_ui_sections": [
+        "Identidade do Site",
+        "Cores",
+        "Textos do Site",
+        "Menu de Navegacao",
+        "Textos dos Botoes",
+        "Titulos das Secoes",
+        "Rodape",
+        "Redes Sociais"
+      ]
+    },
+    "websocket_routes": {
+      "admin_stream": "/api/ws/live/stream",
+      "viewer_watch": "/api/ws/live/watch",
+      "note": "WebSocket endpoints return 404 for HTTP GET (expected behavior - they only respond to WebSocket upgrade requests)"
+    },
+    "obs_instructions": {
+      "method": "Virtual Camera",
+      "steps": [
+        "Configure cenas e fontes no OBS",
+        "Ferramentas > Iniciar Camera Virtual",
+        "Selecione 'Camera / OBS' como fonte",
+        "Escolha 'OBS Virtual Camera' na lista",
+        "Defina titulo e clique 'Ir ao Vivo'"
+      ],
+      "no_rtmp_url": true,
+      "no_stream_key": true
+    }
+  }
+}

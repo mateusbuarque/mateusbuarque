@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import api from "../lib/api";
 import { recordingsAPI, subscriptionAPI } from "../lib/api";
-import { Radio, VideoOff, Monitor, Camera, Settings2, Download, Eye, EyeOff, Trash2, Play, Upload, Copy, Lock, Unlock } from "lucide-react";
+import { Radio, VideoOff, Monitor, Camera, Settings2, Download, Eye, EyeOff, Trash2, Play, Upload, Lock, Unlock } from "lucide-react";
 import VisibilitySelector from "./VisibilitySelector";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -67,7 +67,7 @@ export default function AdminLivePanel() {
       startTimeRef.current = Date.now();
 
       // WebSocket for broadcasting
-      const ws = new WebSocket(`${WS_URL}/ws/live/stream`);
+      const ws = new WebSocket(`${WS_URL}/api/ws/live/stream`);
       wsRef.current = ws;
       ws.onopen = () => {
         const rec = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp8,opus", videoBitsPerSecond: 1500000 });
@@ -230,68 +230,40 @@ export default function AdminLivePanel() {
             </div>
           </div>
 
-          {/* OBS Instructions */}
+          {/* OBS Virtual Camera Instructions */}
           <div className="brutalist-card p-6 md:p-8">
             <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-4 flex items-center gap-2"><Settings2 size={20} /> Como usar com OBS Studio</h3>
             
-            <div className="bg-zinc-950 border-2 border-zinc-800 p-4 mb-6">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-[#FFDE00] mb-3">Configuracoes do OBS</h4>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-zinc-400 uppercase font-bold">Servidor</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <code className="bg-zinc-800 text-[#FFDE00] px-3 py-2 text-sm flex-1 border border-zinc-700 select-all" data-testid="obs-server-url">
-                      https://edegar-comedy-store.preview.emergentagent.com/admin
-                    </code>
-                    <button onClick={() => { navigator.clipboard.writeText("https://edegar-comedy-store.preview.emergentagent.com/admin"); }} className="p-2 border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors" title="Copiar">
-                      <Copy size={14} />
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-zinc-400 uppercase font-bold">Chave de Transmissao</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <code className="bg-zinc-800 text-[#FFDE00] px-3 py-2 text-sm flex-1 border border-zinc-700 select-all" data-testid="obs-stream-key">
-                      Mateus Buarque 1101
-                    </code>
-                    <button onClick={() => { navigator.clipboard.writeText("Mateus Buarque 1101"); }} className="p-2 border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors" title="Copiar">
-                      <Copy size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
+            <div className="bg-amber-50 border-2 border-amber-400 p-4 mb-6">
+              <p className="text-sm font-bold text-amber-800">O OBS Studio funciona atraves da Camera Virtual. O OBS envia o video para o navegador, e o navegador transmite para os espectadores.</p>
             </div>
 
             <h4 className="font-bold text-sm uppercase mb-3 text-zinc-700">Passo a passo</h4>
             <ol className="space-y-3 text-sm text-zinc-700">
               <li className="flex gap-3">
                 <span className="w-6 h-6 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center font-bold text-xs flex-shrink-0">1</span>
-                <span>No OBS, va em <strong>Configuracoes &gt; Transmissao</strong></span>
+                <span>No OBS, configure suas cenas e fontes de video normalmente</span>
               </li>
               <li className="flex gap-3">
                 <span className="w-6 h-6 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center font-bold text-xs flex-shrink-0">2</span>
-                <span>Em "Servico", selecione <strong>"Personalizado"</strong></span>
+                <span>Va em <strong>Ferramentas &gt; Iniciar Camera Virtual</strong> (ou clique "Iniciar Camera Virtual" no painel inferior)</span>
               </li>
               <li className="flex gap-3">
                 <span className="w-6 h-6 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center font-bold text-xs flex-shrink-0">3</span>
-                <span>Cole o <strong>Servidor</strong> e a <strong>Chave de Transmissao</strong> acima</span>
+                <span>Aqui no painel, selecione <strong>"Camera / OBS"</strong> como fonte de video</span>
               </li>
               <li className="flex gap-3">
                 <span className="w-6 h-6 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center font-bold text-xs flex-shrink-0">4</span>
-                <span>Clique em <strong>"Aplicar"</strong> e depois <strong>"OK"</strong></span>
+                <span>Na lista de cameras, escolha <strong>"OBS Virtual Camera"</strong></span>
               </li>
               <li className="flex gap-3">
                 <span className="w-6 h-6 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center font-bold text-xs flex-shrink-0">5</span>
-                <span>Aqui no painel, defina o titulo e clique <strong>"Ir ao Vivo"</strong></span>
-              </li>
-              <li className="flex gap-3">
-                <span className="w-6 h-6 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center font-bold text-xs flex-shrink-0">6</span>
-                <span>No OBS, clique em <strong>"Iniciar Transmissao"</strong> - pronto!</span>
+                <span>Defina o titulo da live e clique <strong>"Ir ao Vivo"</strong></span>
               </li>
             </ol>
             
             <div className="mt-4 bg-zinc-50 border-2 border-zinc-300 p-3">
-              <p className="text-xs text-zinc-500 font-bold">Alternativa: Use <strong>Camera Virtual</strong> do OBS (Ferramentas &gt; Camera Virtual), selecione "Camera / OBS" como fonte acima, e escolha "OBS Virtual Camera" na lista de cameras.</p>
+              <p className="text-xs text-zinc-500 font-bold">Sem OBS? Voce tambem pode usar diretamente a camera do computador ou compartilhar a tela. Basta escolher a fonte de video desejada acima e clicar "Ir ao Vivo".</p>
             </div>
           </div>
         </>

@@ -74,7 +74,7 @@ export default function LivePage() {
     });
 
     // WebSocket viewer connection
-    const ws = new WebSocket(`${WS_URL}/ws/live/watch`);
+    const ws = new WebSocket(`${WS_URL}/api/ws/live/watch`);
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 
