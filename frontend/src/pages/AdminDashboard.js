@@ -1274,6 +1274,8 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", price: "", duration_days: "30" });
   const [saving, setSaving] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", description: "", price: "", duration_days: "" });
 
   const handleCreate = async () => {
     if (!form.name || !form.price) { alert("Preencha nome e preco"); return; }
@@ -1284,6 +1286,32 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
       setShowCreate(false);
       onRefresh();
     } catch (err) { alert("Erro ao criar plano"); }
+    finally { setSaving(false); }
+  };
+
+  const startEdit = (plan) => {
+    setEditingPlan(plan);
+    setEditForm({
+      name: plan.name || "",
+      description: plan.description || "",
+      price: String(plan.price || ""),
+      duration_days: String(plan.duration_days || "30"),
+    });
+  };
+
+  const handleEdit = async () => {
+    if (!editForm.name || !editForm.price) { alert("Preencha nome e preco"); return; }
+    setSaving(true);
+    try {
+      await subscriptionAPI.updatePlan(editingPlan.id, {
+        name: editForm.name,
+        description: editForm.description,
+        price: parseFloat(editForm.price),
+        duration_days: parseInt(editForm.duration_days) || 30,
+      });
+      setEditingPlan(null);
+      onRefresh();
+    } catch (err) { alert("Erro ao atualizar plano"); }
     finally { setSaving(false); }
   };
 
@@ -1310,6 +1338,7 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
 
       {showCreate && (
         <div className="brutalist-card p-6 mb-6">
+          <h4 className="font-bold text-sm uppercase mb-4">Criar Novo Plano</h4>
           <div className="space-y-3 max-w-lg">
             <input type="text" placeholder="Nome do plano" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="brutalist-input text-sm" data-testid="plan-name-input" />
             <textarea placeholder="Descricao" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="brutalist-input text-sm min-h-[60px]" />
@@ -1317,7 +1346,10 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
               <input type="number" step="0.01" placeholder="Preco (R$)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="brutalist-input text-sm" data-testid="plan-price-input" />
               <input type="number" placeholder="Duracao (dias)" value={form.duration_days} onChange={(e) => setForm({ ...form, duration_days: e.target.value })} className="brutalist-input text-sm" />
             </div>
-            <button onClick={handleCreate} disabled={saving} className="brutalist-btn text-sm" data-testid="save-plan-btn">{saving ? "Salvando..." : "Criar Plano"}</button>
+            <div className="flex gap-2">
+              <button onClick={handleCreate} disabled={saving} className="brutalist-btn text-sm" data-testid="save-plan-btn">{saving ? "Salvando..." : "Criar Plano"}</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
+            </div>
           </div>
         </div>
       )}
@@ -1331,15 +1363,52 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
             </div>
             <div className="font-['Outfit'] font-black text-lg">R$ {parseFloat(plan.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}<span className="text-xs text-zinc-500 font-normal">/{plan.duration_days}d</span></div>
             <div className="flex gap-2">
-              <button onClick={() => toggleActive(plan)} className={`px-3 py-1 border-2 text-xs font-bold uppercase ${plan.is_active ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`}>
+              <button onClick={() => toggleActive(plan)} className={`px-3 py-1 border-2 text-xs font-bold uppercase ${plan.is_active ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`} data-testid={`toggle-plan-${plan.id}`}>
                 {plan.is_active ? "Ativo" : "Inativo"}
               </button>
-              <button onClick={() => deletePlan(plan.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
+              <button onClick={() => startEdit(plan)} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" data-testid={`edit-plan-${plan.id}`} title="Editar"><Edit2 size={14} /></button>
+              <button onClick={() => deletePlan(plan.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50" data-testid={`delete-plan-${plan.id}`}><Trash2 size={14} /></button>
             </div>
           </div>
         ))}
         {plans.length === 0 && <div className="brutalist-card p-6 text-center"><p className="text-zinc-500 font-bold uppercase text-sm">Crie seu primeiro plano de assinatura</p></div>}
       </div>
+
+      {/* Edit Plan Modal */}
+      {editingPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="brutalist-card bg-white w-full max-w-md p-6 md:p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-['Outfit'] font-black text-xl uppercase">Editar Plano</h2>
+              <button onClick={() => setEditingPlan(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Nome do Plano</label>
+                <input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="brutalist-input text-sm" data-testid="edit-plan-name" />
+              </div>
+              <div>
+                <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Descricao</label>
+                <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} className="brutalist-input text-sm min-h-[80px]" data-testid="edit-plan-description" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Preco (R$)</label>
+                  <input type="number" step="0.01" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} className="brutalist-input text-sm" data-testid="edit-plan-price" />
+                </div>
+                <div>
+                  <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Duracao (dias)</label>
+                  <input type="number" value={editForm.duration_days} onChange={(e) => setEditForm({ ...editForm, duration_days: e.target.value })} className="brutalist-input text-sm" data-testid="edit-plan-duration" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={handleEdit} disabled={saving} className="brutalist-btn text-sm flex-1" data-testid="save-edit-plan-btn">{saving ? "Salvando..." : "Salvar Alteracoes"}</button>
+                <button onClick={() => setEditingPlan(null)} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Subscribers list */}
       <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-4">Assinantes ({allSubs.length})</h3>
