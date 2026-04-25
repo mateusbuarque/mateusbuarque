@@ -1272,17 +1272,41 @@ function VideosTab({ videos, onRefresh }) {
 
 function SubscriptionsTab({ plans, allSubs, onRefresh }) {
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", price: "", duration_days: "30" });
   const [saving, setSaving] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
-  const [editForm, setEditForm] = useState({ name: "", description: "", price: "", duration_days: "" });
+  const [newFeature, setNewFeature] = useState("");
+  const [editNewFeature, setEditNewFeature] = useState("");
+
+  const emptyForm = { name: "", description: "", price: "", duration_days: "30", features: [], access_lives: true, access_videos: true, access_recordings: true, access_chat: true, highlight: false };
+  const [form, setForm] = useState(emptyForm);
+  const [editForm, setEditForm] = useState(emptyForm);
+
+  const addFeature = (isEdit) => {
+    const val = isEdit ? editNewFeature.trim() : newFeature.trim();
+    if (!val) return;
+    if (isEdit) {
+      setEditForm(prev => ({ ...prev, features: [...(prev.features || []), val] }));
+      setEditNewFeature("");
+    } else {
+      setForm(prev => ({ ...prev, features: [...(prev.features || []), val] }));
+      setNewFeature("");
+    }
+  };
+
+  const removeFeature = (idx, isEdit) => {
+    if (isEdit) {
+      setEditForm(prev => ({ ...prev, features: prev.features.filter((_, i) => i !== idx) }));
+    } else {
+      setForm(prev => ({ ...prev, features: prev.features.filter((_, i) => i !== idx) }));
+    }
+  };
 
   const handleCreate = async () => {
     if (!form.name || !form.price) { alert("Preencha nome e preco"); return; }
     setSaving(true);
     try {
-      await subscriptionAPI.createPlan(form);
-      setForm({ name: "", description: "", price: "", duration_days: "30" });
+      await subscriptionAPI.createPlan({ ...form, price: parseFloat(form.price), duration_days: parseInt(form.duration_days) || 30 });
+      setForm(emptyForm);
       setShowCreate(false);
       onRefresh();
     } catch (err) { alert("Erro ao criar plano"); }
@@ -1296,6 +1320,12 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
       description: plan.description || "",
       price: String(plan.price || ""),
       duration_days: String(plan.duration_days || "30"),
+      features: plan.features || [],
+      access_lives: plan.access_lives !== false,
+      access_videos: plan.access_videos !== false,
+      access_recordings: plan.access_recordings !== false,
+      access_chat: plan.access_chat !== false,
+      highlight: plan.highlight || false,
     });
   };
 
@@ -1304,8 +1334,7 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
     setSaving(true);
     try {
       await subscriptionAPI.updatePlan(editingPlan.id, {
-        name: editForm.name,
-        description: editForm.description,
+        ...editForm,
         price: parseFloat(editForm.price),
         duration_days: parseInt(editForm.duration_days) || 30,
       });
@@ -1326,9 +1355,49 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
     onRefresh();
   };
 
+  const AccessToggles = ({ data, setData, prefix }) => (
+    <div className="border-2 border-zinc-200 p-4">
+      <p className="font-bold text-xs uppercase tracking-wider text-zinc-700 mb-3">O que este plano oferece</p>
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { key: "access_lives", label: "Lives exclusivas" },
+          { key: "access_videos", label: "Videos para assinantes" },
+          { key: "access_recordings", label: "Gravacoes de lives" },
+          { key: "access_chat", label: "Chat ao vivo" },
+        ].map(({ key, label }) => (
+          <label key={key} className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={data[key] !== false} onChange={(e) => setData({ ...data, [key]: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" data-testid={`${prefix}-${key}`} />
+            <span className="text-sm font-bold text-zinc-700">{label}</span>
+          </label>
+        ))}
+      </div>
+      <label className="flex items-center gap-2 cursor-pointer mt-3 pt-3 border-t border-zinc-200">
+        <input type="checkbox" checked={data.highlight || false} onChange={(e) => setData({ ...data, highlight: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" data-testid={`${prefix}-highlight`} />
+        <span className="text-sm font-bold text-amber-700">Destacar plano (recomendado)</span>
+      </label>
+    </div>
+  );
+
+  const FeaturesEditor = ({ features, newVal, setNewVal, onAdd, onRemove, prefix }) => (
+    <div>
+      <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Beneficios / Vantagens</label>
+      <div className="space-y-2 mb-2">
+        {(features || []).map((f, i) => (
+          <div key={i} className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 px-3 py-2">
+            <span className="text-sm flex-1">{f}</span>
+            <button type="button" onClick={() => onRemove(i)} className="text-red-500 hover:text-red-700 font-bold text-xs" data-testid={`${prefix}-remove-feature-${i}`}><X size={14} /></button>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input type="text" value={newVal} onChange={(e) => setNewVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onAdd())} placeholder="Ex: Acesso a conteudo exclusivo" className="brutalist-input text-sm flex-1" data-testid={`${prefix}-feature-input`} />
+        <button type="button" onClick={onAdd} className="px-3 py-2 border-2 border-zinc-950 font-bold text-xs uppercase hover:bg-zinc-100" data-testid={`${prefix}-add-feature`}>+</button>
+      </div>
+    </div>
+  );
+
   return (
     <div data-testid="subscriptions-tab">
-      {/* Plans */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="font-['Outfit'] font-bold text-xl uppercase">Planos de Assinatura</h3>
         <button onClick={() => setShowCreate(!showCreate)} className="brutalist-btn flex items-center gap-2 text-sm" data-testid="create-plan-btn">
@@ -1339,16 +1408,18 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
       {showCreate && (
         <div className="brutalist-card p-6 mb-6">
           <h4 className="font-bold text-sm uppercase mb-4">Criar Novo Plano</h4>
-          <div className="space-y-3 max-w-lg">
+          <div className="space-y-4 max-w-lg">
             <input type="text" placeholder="Nome do plano" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="brutalist-input text-sm" data-testid="plan-name-input" />
-            <textarea placeholder="Descricao" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="brutalist-input text-sm min-h-[60px]" />
+            <textarea placeholder="Descricao do plano" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="brutalist-input text-sm min-h-[60px]" />
             <div className="grid grid-cols-2 gap-3">
               <input type="number" step="0.01" placeholder="Preco (R$)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="brutalist-input text-sm" data-testid="plan-price-input" />
               <input type="number" placeholder="Duracao (dias)" value={form.duration_days} onChange={(e) => setForm({ ...form, duration_days: e.target.value })} className="brutalist-input text-sm" />
             </div>
+            <AccessToggles data={form} setData={setForm} prefix="create" />
+            <FeaturesEditor features={form.features} newVal={newFeature} setNewVal={setNewFeature} onAdd={() => addFeature(false)} onRemove={(i) => removeFeature(i, false)} prefix="create" />
             <div className="flex gap-2">
               <button onClick={handleCreate} disabled={saving} className="brutalist-btn text-sm" data-testid="save-plan-btn">{saving ? "Salvando..." : "Criar Plano"}</button>
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
+              <button onClick={() => { setShowCreate(false); setForm(emptyForm); }} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
             </div>
           </div>
         </div>
@@ -1356,18 +1427,36 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
 
       <div className="space-y-3 mb-10">
         {plans.map((plan) => (
-          <div key={plan.id} className="brutalist-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4" data-testid={`plan-${plan.id}`}>
-            <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-zinc-950">{plan.name}</h4>
-              <p className="text-xs text-zinc-500 mt-1">{plan.description}</p>
-            </div>
-            <div className="font-['Outfit'] font-black text-lg">R$ {parseFloat(plan.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}<span className="text-xs text-zinc-500 font-normal">/{plan.duration_days}d</span></div>
-            <div className="flex gap-2">
-              <button onClick={() => toggleActive(plan)} className={`px-3 py-1 border-2 text-xs font-bold uppercase ${plan.is_active ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`} data-testid={`toggle-plan-${plan.id}`}>
-                {plan.is_active ? "Ativo" : "Inativo"}
-              </button>
-              <button onClick={() => startEdit(plan)} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" data-testid={`edit-plan-${plan.id}`} title="Editar"><Edit2 size={14} /></button>
-              <button onClick={() => deletePlan(plan.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50" data-testid={`delete-plan-${plan.id}`}><Trash2 size={14} /></button>
+          <div key={plan.id} className="brutalist-card p-4" data-testid={`plan-${plan.id}`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-zinc-950">{plan.name}</h4>
+                  {plan.highlight && <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-xs font-bold uppercase border border-amber-300">Destaque</span>}
+                </div>
+                <p className="text-xs text-zinc-500 mt-1">{plan.description}</p>
+                {plan.features && plan.features.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {plan.features.map((f, i) => (
+                      <span key={i} className="px-2 py-0.5 bg-zinc-100 text-zinc-600 text-xs font-bold border border-zinc-200">{f}</span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-3 mt-2">
+                  {plan.access_lives !== false && <span className="text-xs text-green-600 font-bold">Lives</span>}
+                  {plan.access_videos !== false && <span className="text-xs text-green-600 font-bold">Videos</span>}
+                  {plan.access_recordings !== false && <span className="text-xs text-green-600 font-bold">Gravacoes</span>}
+                  {plan.access_chat !== false && <span className="text-xs text-green-600 font-bold">Chat</span>}
+                </div>
+              </div>
+              <div className="font-['Outfit'] font-black text-lg">R$ {parseFloat(plan.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}<span className="text-xs text-zinc-500 font-normal">/{plan.duration_days}d</span></div>
+              <div className="flex gap-2">
+                <button onClick={() => toggleActive(plan)} className={`px-3 py-1 border-2 text-xs font-bold uppercase ${plan.is_active ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`} data-testid={`toggle-plan-${plan.id}`}>
+                  {plan.is_active ? "Ativo" : "Inativo"}
+                </button>
+                <button onClick={() => startEdit(plan)} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" data-testid={`edit-plan-${plan.id}`} title="Editar"><Edit2 size={14} /></button>
+                <button onClick={() => deletePlan(plan.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50" data-testid={`delete-plan-${plan.id}`}><Trash2 size={14} /></button>
+              </div>
             </div>
           </div>
         ))}
@@ -1376,8 +1465,8 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
 
       {/* Edit Plan Modal */}
       {editingPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="brutalist-card bg-white w-full max-w-md p-6 md:p-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+          <div className="brutalist-card bg-white w-full max-w-lg p-6 md:p-8 my-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-['Outfit'] font-black text-xl uppercase">Editar Plano</h2>
               <button onClick={() => setEditingPlan(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
@@ -1401,6 +1490,8 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
                   <input type="number" value={editForm.duration_days} onChange={(e) => setEditForm({ ...editForm, duration_days: e.target.value })} className="brutalist-input text-sm" data-testid="edit-plan-duration" />
                 </div>
               </div>
+              <AccessToggles data={editForm} setData={setEditForm} prefix="edit" />
+              <FeaturesEditor features={editForm.features} newVal={editNewFeature} setNewVal={setEditNewFeature} onAdd={() => addFeature(true)} onRemove={(i) => removeFeature(i, true)} prefix="edit" />
               <div className="flex gap-3 pt-2">
                 <button onClick={handleEdit} disabled={saving} className="brutalist-btn text-sm flex-1" data-testid="save-edit-plan-btn">{saving ? "Salvando..." : "Salvar Alteracoes"}</button>
                 <button onClick={() => setEditingPlan(null)} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>

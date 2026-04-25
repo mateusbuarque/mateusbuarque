@@ -1101,6 +1101,12 @@ async def create_plan(request: Request, user=Depends(require_admin)):
         "price": float(body.get("price", 0)),
         "duration_days": int(body.get("duration_days", 30)),
         "is_active": True,
+        "features": body.get("features", []),
+        "access_lives": body.get("access_lives", True),
+        "access_videos": body.get("access_videos", True),
+        "access_recordings": body.get("access_recordings", True),
+        "access_chat": body.get("access_chat", True),
+        "highlight": body.get("highlight", False),
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.subscription_plans.insert_one(plan)
@@ -1110,7 +1116,8 @@ async def create_plan(request: Request, user=Depends(require_admin)):
 @api_router.put("/subscription-plans/{plan_id}")
 async def update_plan(plan_id: str, request: Request, user=Depends(require_admin)):
     body = await request.json()
-    update = {k: v for k, v in body.items() if k in ("name", "description", "price", "duration_days", "is_active")}
+    allowed_fields = ("name", "description", "price", "duration_days", "is_active", "features", "access_lives", "access_videos", "access_recordings", "access_chat", "highlight")
+    update = {k: v for k, v in body.items() if k in allowed_fields}
     if "price" in update: update["price"] = float(update["price"])
     if "duration_days" in update: update["duration_days"] = int(update["duration_days"])
     await db.subscription_plans.update_one({"id": plan_id}, {"$set": update})

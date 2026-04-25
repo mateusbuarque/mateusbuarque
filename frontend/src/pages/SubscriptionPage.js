@@ -66,7 +66,8 @@ export default function SubscriptionPage() {
         {plans.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {plans.map((plan, i) => (
-              <div key={plan.id} className="brutalist-card p-6 flex flex-col" data-testid={`plan-card-${i}`}>
+              <div key={plan.id} className={`brutalist-card p-6 flex flex-col ${plan.highlight ? "border-[var(--site-primary,#FFDE00)] border-4 relative" : ""}`} data-testid={`plan-card-${i}`}>
+                {plan.highlight && <span className="absolute -top-3 left-4 bg-[var(--site-primary,#FFDE00)] text-zinc-950 px-3 py-0.5 text-xs font-black uppercase border-2 border-zinc-950">Recomendado</span>}
                 <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-2">{plan.name}</h3>
                 <p className="text-sm text-zinc-600 mb-4 flex-1">{plan.description}</p>
                 <div className="mb-4">
@@ -74,9 +75,13 @@ export default function SubscriptionPage() {
                   <span className="text-zinc-500 text-sm">/{plan.duration_days} dias</span>
                 </div>
                 <ul className="space-y-2 mb-6">
-                  <li className="flex items-center gap-2 text-sm"><Check size={14} className="text-green-600" /> Lives exclusivas</li>
-                  <li className="flex items-center gap-2 text-sm"><Check size={14} className="text-green-600" /> Videos para assinantes</li>
-                  <li className="flex items-center gap-2 text-sm"><Check size={14} className="text-green-600" /> Gravacoes de lives</li>
+                  {plan.access_lives !== false && <li className="flex items-center gap-2 text-sm"><Check size={14} className="text-green-600" /> Lives exclusivas</li>}
+                  {plan.access_videos !== false && <li className="flex items-center gap-2 text-sm"><Check size={14} className="text-green-600" /> Videos para assinantes</li>}
+                  {plan.access_recordings !== false && <li className="flex items-center gap-2 text-sm"><Check size={14} className="text-green-600" /> Gravacoes de lives</li>}
+                  {plan.access_chat !== false && <li className="flex items-center gap-2 text-sm"><Check size={14} className="text-green-600" /> Chat ao vivo</li>}
+                  {(plan.features || []).map((f, j) => (
+                    <li key={j} className="flex items-center gap-2 text-sm"><Check size={14} className="text-green-600" /> {f}</li>
+                  ))}
                 </ul>
                 {mySub?.is_subscribed ? (
                   <div className="text-center text-sm font-bold text-green-600 py-3">Ja assinante</div>
