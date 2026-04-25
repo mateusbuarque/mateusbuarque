@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI, videosAPI, subscriptionAPI, liveAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play, Crown, Lock } from "lucide-react";
+import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI, videosAPI, subscriptionAPI, liveAPI, couponAPI } from "../lib/api";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play, Crown, Lock, Tag, Percent } from "lucide-react";
 import ImageUpload from "../components/ImageUpload";
 import AdminLivePanel from "../components/AdminLivePanel";
 import VisibilitySelector from "../components/VisibilitySelector";
@@ -24,6 +24,7 @@ export default function AdminDashboard() {
   const [videosList, setVideosList] = useState([]);
   const [subPlans, setSubPlans] = useState([]);
   const [allSubs, setAllSubs] = useState([]);
+  const [coupons, setCoupons] = useState([]);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
@@ -41,11 +42,11 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes, vidRes, plansRes, allSubsRes] = await Promise.all([
+      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes, vidRes, plansRes, allSubsRes, couponsRes] = await Promise.all([
         campaignAPI.getAll(), productAPI.getAll(), adminAPI.stats(),
         galleryAPI.getAll(), bioAPI.get(), newsletterAPI.getSubscribers(),
         siteSettingsAPI.get(), showcaseAPI.getAll(), videosAPI.getAll(),
-        subscriptionAPI.plans(), adminAPI.subscriptions(),
+        subscriptionAPI.plans(), adminAPI.subscriptions(), couponAPI.getAll(),
       ]);
       setCampaigns(campRes.data);
       setProducts(prodRes.data);
@@ -58,6 +59,7 @@ export default function AdminDashboard() {
       setVideosList(vidRes.data);
       setSubPlans(plansRes.data);
       setAllSubs(allSubsRes.data);
+      setCoupons(couponsRes.data);
     } catch (err) { console.error(err); }
   };
 
@@ -93,6 +95,7 @@ export default function AdminDashboard() {
     { id: "live", label: "Live", icon: <Radio size={16} /> },
     { id: "videos", label: "Videos", icon: <Video size={16} /> },
     { id: "subscriptions", label: "Assinaturas", icon: <Crown size={16} /> },
+    { id: "coupons", label: "Cupons", icon: <Tag size={16} /> },
     { id: "showcase", label: "Vitrine", icon: <Sparkles size={16} /> },
     { id: "gallery", label: "Galeria", icon: <Image size={16} /> },
     { id: "bio", label: "Biografia", icon: <FileText size={16} /> },
@@ -271,6 +274,7 @@ export default function AdminDashboard() {
 
         {/* Subscriptions Tab */}
         {tab === "subscriptions" && <SubscriptionsTab plans={subPlans} allSubs={allSubs} onRefresh={loadData} />}
+        {tab === "coupons" && <CouponsTab coupons={coupons} onRefresh={loadData} />}
 
         {/* Products Tab */}
         {tab === "products" && (
@@ -1672,6 +1676,165 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
         </div>
       ) : (
         <div className="brutalist-card p-6 text-center"><p className="text-zinc-500 font-bold uppercase text-sm">Nenhum assinante ainda</p></div>
+      )}
+    </div>
+  );
+}
+
+
+function CouponsTab({ coupons, onRefresh }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const emptyForm = { code: "", discount_type: "fixed", discount_value: "", max_uses: "", applies_to: "all", expires_at: "" };
+  const [form, setForm] = useState(emptyForm);
+  const [editForm, setEditForm] = useState(emptyForm);
+
+  const handleCreate = async () => {
+    if (!form.code || !form.discount_value) { alert("Preencha o codigo e valor do desconto"); return; }
+    setSaving(true);
+    try {
+      await couponAPI.create({ ...form, discount_value: parseFloat(form.discount_value), max_uses: form.max_uses ? parseInt(form.max_uses) : null });
+      setForm(emptyForm);
+      setShowCreate(false);
+      onRefresh();
+    } catch (err) { alert(err.response?.data?.detail || "Erro ao criar cupom"); }
+    finally { setSaving(false); }
+  };
+
+  const startEdit = (c) => {
+    setEditing(c);
+    setEditForm({ code: c.code, discount_type: c.discount_type, discount_value: String(c.discount_value), max_uses: c.max_uses ? String(c.max_uses) : "", applies_to: c.applies_to || "all", expires_at: c.expires_at ? c.expires_at.split("T")[0] : "" });
+  };
+
+  const handleEdit = async () => {
+    if (!editForm.code || !editForm.discount_value) { alert("Preencha o codigo e valor"); return; }
+    setSaving(true);
+    try {
+      await couponAPI.update(editing.id, { ...editForm, discount_value: parseFloat(editForm.discount_value), max_uses: editForm.max_uses ? parseInt(editForm.max_uses) : null });
+      setEditing(null);
+      onRefresh();
+    } catch (err) { alert(err.response?.data?.detail || "Erro"); }
+    finally { setSaving(false); }
+  };
+
+  const toggleActive = async (c) => {
+    await couponAPI.update(c.id, { is_active: !c.is_active });
+    onRefresh();
+  };
+
+  const deleteCoupon = async (id) => {
+    if (!window.confirm("Excluir cupom?")) return;
+    await couponAPI.delete(id);
+    onRefresh();
+  };
+
+  const appliesLabel = { all: "Tudo", campaigns: "Campanhas", products: "Produtos", subscriptions: "Assinaturas" };
+
+  const CouponForm = ({ data, setData, onSave, onCancel, btnLabel }) => (
+    <div className="space-y-4 max-w-lg">
+      <div>
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Codigo do Cupom</label>
+        <input type="text" value={data.code} onChange={(e) => setData({ ...data, code: e.target.value.toUpperCase() })} placeholder="Ex: DESCONTO20" className="brutalist-input text-sm font-mono" data-testid="coupon-code-input" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Tipo de Desconto</label>
+          <select value={data.discount_type} onChange={(e) => setData({ ...data, discount_type: e.target.value })} className="brutalist-input text-sm" data-testid="coupon-type-select">
+            <option value="fixed">Valor fixo (R$)</option>
+            <option value="percent">Porcentagem (%)</option>
+          </select>
+        </div>
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">{data.discount_type === "percent" ? "Desconto (%)" : "Desconto (R$)"}</label>
+          <input type="number" step="0.01" value={data.discount_value} onChange={(e) => setData({ ...data, discount_value: e.target.value })} placeholder={data.discount_type === "percent" ? "Ex: 15" : "Ex: 10.00"} className="brutalist-input text-sm" data-testid="coupon-value-input" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Valido para</label>
+          <select value={data.applies_to} onChange={(e) => setData({ ...data, applies_to: e.target.value })} className="brutalist-input text-sm" data-testid="coupon-applies-select">
+            <option value="all">Tudo (campanhas, loja, assinaturas)</option>
+            <option value="campaigns">Somente Campanhas</option>
+            <option value="products">Somente Produtos</option>
+            <option value="subscriptions">Somente Assinaturas</option>
+          </select>
+        </div>
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Maximo de usos (0 = ilimitado)</label>
+          <input type="number" value={data.max_uses} onChange={(e) => setData({ ...data, max_uses: e.target.value })} placeholder="0" className="brutalist-input text-sm" data-testid="coupon-max-uses" />
+        </div>
+      </div>
+      <div>
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Data de expiracao (opcional)</label>
+        <input type="date" value={data.expires_at} onChange={(e) => setData({ ...data, expires_at: e.target.value })} className="brutalist-input text-sm" data-testid="coupon-expires" />
+      </div>
+      <div className="flex gap-2">
+        <button onClick={onSave} disabled={saving} className="brutalist-btn text-sm" data-testid="coupon-save-btn">{saving ? "Salvando..." : btnLabel}</button>
+        <button onClick={onCancel} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div data-testid="coupons-tab">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase">Cupons de Desconto</h3>
+        <button onClick={() => setShowCreate(!showCreate)} className="brutalist-btn flex items-center gap-2 text-sm" data-testid="create-coupon-btn">
+          <Plus size={16} /> Novo Cupom
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="brutalist-card p-6 mb-6">
+          <h4 className="font-bold text-sm uppercase mb-4">Criar Novo Cupom</h4>
+          <CouponForm data={form} setData={setForm} onSave={handleCreate} onCancel={() => { setShowCreate(false); setForm(emptyForm); }} btnLabel="Criar Cupom" />
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {coupons.map((c) => (
+          <div key={c.id} className="brutalist-card p-4" data-testid={`coupon-${c.id}`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[var(--site-primary,#FFDE00)] border-2 border-zinc-950 flex items-center justify-center flex-shrink-0">
+                  {c.discount_type === "percent" ? <Percent size={18} /> : <Tag size={18} />}
+                </div>
+                <div>
+                  <h4 className="font-mono font-bold text-lg text-zinc-950">{c.code}</h4>
+                  <p className="text-xs text-zinc-500">
+                    {c.discount_type === "percent" ? `${c.discount_value}% de desconto` : `R$ ${parseFloat(c.discount_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} de desconto`}
+                    {" "}em <span className="font-bold">{appliesLabel[c.applies_to] || "Tudo"}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="flex-1 flex items-center gap-3 text-xs text-zinc-500">
+                <span>{c.uses || 0}{c.max_uses ? `/${c.max_uses}` : ""} usos</span>
+                {c.expires_at && <span>Expira: {new Date(c.expires_at).toLocaleDateString("pt-BR")}</span>}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => toggleActive(c)} className={`px-3 py-1 border-2 text-xs font-bold uppercase ${c.is_active ? "border-green-500 text-green-700 bg-green-50" : "border-zinc-300 text-zinc-500"}`} data-testid={`toggle-coupon-${c.id}`}>
+                  {c.is_active ? "Ativo" : "Inativo"}
+                </button>
+                <button onClick={() => startEdit(c)} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" data-testid={`edit-coupon-${c.id}`}><Edit2 size={14} /></button>
+                <button onClick={() => deleteCoupon(c.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50" data-testid={`delete-coupon-${c.id}`}><Trash2 size={14} /></button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {coupons.length === 0 && <div className="brutalist-card p-8 text-center"><Tag size={36} className="mx-auto mb-3 text-zinc-300" /><p className="text-zinc-500 font-bold uppercase text-sm">Nenhum cupom criado ainda</p></div>}
+      </div>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+          <div className="brutalist-card bg-white w-full max-w-lg p-6 md:p-8 my-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-['Outfit'] font-black text-xl uppercase">Editar Cupom</h2>
+              <button onClick={() => setEditing(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
+            </div>
+            <CouponForm data={editForm} setData={setEditForm} onSave={handleEdit} onCancel={() => setEditing(null)} btnLabel="Salvar Alteracoes" />
+          </div>
+        </div>
       )}
     </div>
   );

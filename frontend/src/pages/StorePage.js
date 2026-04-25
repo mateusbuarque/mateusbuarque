@@ -4,6 +4,7 @@ import { productAPI, checkoutAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import { ShoppingBag, QrCode, Copy, Check, Mail } from "lucide-react";
+import CouponInput from "../components/CouponInput";
 
 export default function StorePage() {
   const [products, setProducts] = useState([]);
@@ -14,6 +15,7 @@ export default function StorePage() {
   const { user } = useAuth();
   const { settings } = useSiteSettings();
   const navigate = useNavigate();
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
   useEffect(() => {
     productAPI.getAll()
@@ -26,7 +28,7 @@ export default function StorePage() {
     if (!user) { navigate("/login"); return; }
     setCheckoutLoading(product.id);
     try {
-      const res = await checkoutAPI.product({ product_id: product.id, quantity: 1 });
+      const res = await checkoutAPI.product({ product_id: product.id, quantity: 1, coupon_code: appliedCoupon?.code || null });
       setPixModal(res.data);
     } catch (err) { alert(err.response?.data?.detail || "Erro"); }
     finally { setCheckoutLoading(null); }
@@ -56,7 +58,9 @@ export default function StorePage() {
         </div>
 
         {products.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div>
+            {user && <div className="mb-6 max-w-md"><CouponInput appliedCoupon={appliedCoupon} onApply={setAppliedCoupon} onRemove={() => setAppliedCoupon(null)} /></div>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {products.map((product, i) => (
               <div key={product.id} className="brutalist-card overflow-hidden" data-testid={`product-card-${i}`}>
                 <div className="border-b-2 border-zinc-950 overflow-hidden">
@@ -91,6 +95,7 @@ export default function StorePage() {
               </div>
             ))}
           </div>
+          </div>
         ) : (
           <div className="brutalist-card p-12 text-center">
             <ShoppingBag size={48} className="mx-auto mb-4 text-zinc-300" />
@@ -113,6 +118,13 @@ export default function StorePage() {
                 <QrCode size={40} className="text-zinc-950" />
               </div>
               <p className="font-['Outfit'] font-black text-3xl text-zinc-950">R$ {(pixModal.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              {pixModal.discount > 0 && (
+                <div className="mt-1">
+                  <span className="text-sm text-zinc-400 line-through">R$ {(pixModal.original_amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                  <span className="text-sm text-green-600 font-bold ml-2">-R$ {(pixModal.discount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                  {pixModal.coupon_code && <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold border border-green-300">{pixModal.coupon_code}</span>}
+                </div>
+              )}
               <p className="text-sm text-zinc-500 mt-1">{pixModal.item_title}</p>
             </div>
             <div className="bg-zinc-50 border-2 border-zinc-950 p-4 mb-4">

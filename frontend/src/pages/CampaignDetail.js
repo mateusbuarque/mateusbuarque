@@ -4,6 +4,7 @@ import { campaignAPI, checkoutAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import { Calendar, Users, Target, ArrowLeft, Truck, QrCode, Copy, Check, Mail } from "lucide-react";
+import CouponInput from "../components/CouponInput";
 
 export default function CampaignDetail() {
   const { id } = useParams();
@@ -16,6 +17,7 @@ export default function CampaignDetail() {
   const [donationAmounts, setDonationAmounts] = useState({});
   const [pixModal, setPixModal] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
   useEffect(() => {
     campaignAPI.getOne(id)
@@ -39,6 +41,7 @@ export default function CampaignDetail() {
         campaign_id: campaign.id,
         tier_id: tier.id,
         custom_amount: donationAmounts[tier.id],
+        coupon_code: appliedCoupon?.code || null,
       });
       setPixModal(res.data);
     } catch (err) {
@@ -114,6 +117,7 @@ export default function CampaignDetail() {
               )}
 
               <h4 className="font-['Outfit'] font-bold text-sm uppercase tracking-wider">Recompensas / Doacao</h4>
+              {user && <div className="mb-4"><CouponInput appliedCoupon={appliedCoupon} onApply={setAppliedCoupon} onRemove={() => setAppliedCoupon(null)} /></div>}
               {campaign.tiers && campaign.tiers.length > 0 ? (
                 campaign.tiers.map((tier, i) => {
                   const minDonation = tier.min_donation || tier.price;
@@ -191,6 +195,13 @@ export default function CampaignDetail() {
               <p className="font-['Outfit'] font-black text-3xl text-zinc-950">
                 R$ {(pixModal.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </p>
+              {pixModal.discount > 0 && (
+                <div className="mt-1">
+                  <span className="text-sm text-zinc-400 line-through">R$ {(pixModal.original_amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                  <span className="text-sm text-green-600 font-bold ml-2">-R$ {(pixModal.discount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                  {pixModal.coupon_code && <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold border border-green-300">{pixModal.coupon_code}</span>}
+                </div>
+              )}
               <p className="text-sm text-zinc-500 mt-1">{pixModal.item_title}</p>
             </div>
 

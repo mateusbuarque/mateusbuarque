@@ -262,10 +262,12 @@ class CheckoutCampaignRequest(BaseModel):
     campaign_id: str
     tier_id: str
     custom_amount: Optional[float] = None
+    coupon_code: Optional[str] = None
 
 class CheckoutProductRequest(BaseModel):
     product_id: str
     quantity: int = 1
+    coupon_code: Optional[str] = None
 
 class PixPaymentCreate(BaseModel):
     type: str
@@ -274,6 +276,7 @@ class PixPaymentCreate(BaseModel):
     product_id: Optional[str] = None
     quantity: int = 1
     custom_amount: Optional[float] = None
+    coupon_code: Optional[str] = None
 
 class PixConfirmRequest(BaseModel):
     transaction_id: str
@@ -654,18 +657,28 @@ async def checkout_campaign(data: CheckoutCampaignRequest, user=Depends(get_curr
     
     min_amount = tier.get("min_donation", 0) or tier["price"]
     if data.custom_amount and data.custom_amount >= min_amount:
-        amount = float(data.custom_amount)
+        original_amount = float(data.custom_amount)
     else:
-        amount = float(tier["price"])
+        original_amount = float(tier["price"])
     
-    if amount < min_amount:
+    if original_amount < min_amount:
         raise HTTPException(status_code=400, detail=f"Valor minimo: R$ {min_amount:.2f}")
+    
+    coupon = await validate_coupon(data.coupon_code) if data.coupon_code else None
+    if coupon and coupon.get("applies_to") not in ("all", "campaigns"):
+        raise HTTPException(status_code=400, detail="Cupom nao valido para campanhas")
+    amount, discount = apply_discount(original_amount, coupon)
+    
+    if coupon:
+        await db.coupons.update_one({"id": coupon["id"]}, {"$inc": {"uses": 1}})
     
     tx_id = str(uuid.uuid4())
     transaction = {
         "id": tx_id, "session_id": f"pix_{tx_id}", "type": "campaign",
         "campaign_id": data.campaign_id, "tier_id": data.tier_id, "product_id": None,
-        "amount": amount, "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
+        "amount": amount, "original_amount": original_amount, "discount": discount,
+        "coupon_code": coupon["code"] if coupon else None,
+        "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
         "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
         "user_name": user.get("name", ""), "payment_status": "awaiting_pix",
         "payment_method": "pix",
@@ -676,6 +689,9 @@ async def checkout_campaign(data: CheckoutCampaignRequest, user=Depends(get_curr
     return {
         "transaction_id": tx_id,
         "amount": amount,
+        "original_amount": original_amount,
+        "discount": discount,
+        "coupon_code": coupon["code"] if coupon else None,
         "pix_key": PIX_KEY,
         "pix_key_type": PIX_KEY_TYPE,
         "item_title": campaign["title"],
@@ -691,12 +707,22 @@ async def checkout_product(data: CheckoutProductRequest, user=Depends(get_curren
     if not product.get("is_active"):
         raise HTTPException(status_code=400, detail="Produto indisponivel")
     
-    amount = float(product["price"]) * data.quantity
+    original_amount = float(product["price"]) * data.quantity
+    
+    coupon = await validate_coupon(data.coupon_code) if data.coupon_code else None
+    if coupon and coupon.get("applies_to") not in ("all", "products"):
+        raise HTTPException(status_code=400, detail="Cupom nao valido para produtos")
+    amount, discount = apply_discount(original_amount, coupon)
+    
+    if coupon:
+        await db.coupons.update_one({"id": coupon["id"]}, {"$inc": {"uses": 1}})
+    
     tx_id = str(uuid.uuid4())
     transaction = {
         "id": tx_id, "session_id": f"pix_{tx_id}", "type": "product",
         "campaign_id": None, "tier_id": None, "product_id": data.product_id,
-        "quantity": data.quantity, "amount": amount,
+        "quantity": data.quantity, "amount": amount, "original_amount": original_amount,
+        "discount": discount, "coupon_code": coupon["code"] if coupon else None,
         "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
         "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
         "user_name": user.get("name", ""), "payment_status": "awaiting_pix",
@@ -708,6 +734,9 @@ async def checkout_product(data: CheckoutProductRequest, user=Depends(get_curren
     return {
         "transaction_id": tx_id,
         "amount": amount,
+        "original_amount": original_amount,
+        "discount": discount,
+        "coupon_code": coupon["code"] if coupon else None,
         "pix_key": PIX_KEY,
         "pix_key_type": PIX_KEY_TYPE,
         "item_title": product["title"],
@@ -1136,6 +1165,85 @@ async def update_bio(data: BioUpdate, user=Depends(require_admin)):
     )
     return {"message": "Biografia atualizada"}
 
+# ─── Coupons ───
+async def validate_coupon(code: str) -> dict:
+    """Validate coupon and return it if valid, else raise"""
+    if not code:
+        return None
+    coupon = await db.coupons.find_one({"code": code.strip().upper(), "is_active": True}, {"_id": 0})
+    if not coupon:
+        raise HTTPException(status_code=400, detail="Cupom invalido ou expirado")
+    if coupon.get("expires_at"):
+        from datetime import datetime as dt
+        if dt.fromisoformat(coupon["expires_at"]) < dt.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="Cupom expirado")
+    if coupon.get("max_uses") and coupon.get("uses", 0) >= coupon["max_uses"]:
+        raise HTTPException(status_code=400, detail="Cupom esgotado")
+    return coupon
+
+def apply_discount(amount: float, coupon: dict) -> tuple:
+    """Returns (final_amount, discount_amount)"""
+    if not coupon:
+        return amount, 0.0
+    if coupon.get("discount_type") == "percent":
+        discount = round(amount * coupon["discount_value"] / 100, 2)
+    else:
+        discount = min(coupon["discount_value"], amount)
+    final = max(round(amount - discount, 2), 0)
+    return final, discount
+
+@api_router.get("/admin/coupons")
+async def get_coupons(user=Depends(require_admin)):
+    return await db.coupons.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+@api_router.post("/admin/coupons")
+async def create_coupon(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    code = body.get("code", "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Codigo obrigatorio")
+    existing = await db.coupons.find_one({"code": code})
+    if existing:
+        raise HTTPException(status_code=400, detail="Ja existe um cupom com este codigo")
+    coupon = {
+        "id": str(uuid.uuid4()),
+        "code": code,
+        "discount_type": body.get("discount_type", "fixed"),
+        "discount_value": float(body.get("discount_value", 0)),
+        "max_uses": int(body.get("max_uses", 0)) if body.get("max_uses") else None,
+        "uses": 0,
+        "applies_to": body.get("applies_to", "all"),
+        "is_active": True,
+        "expires_at": body.get("expires_at") or None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.coupons.insert_one(coupon)
+    coupon.pop("_id", None)
+    return coupon
+
+@api_router.put("/admin/coupons/{coupon_id}")
+async def update_coupon(coupon_id: str, request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    allowed = ("code", "discount_type", "discount_value", "max_uses", "applies_to", "is_active", "expires_at")
+    update = {k: v for k, v in body.items() if k in allowed}
+    if "code" in update: update["code"] = update["code"].strip().upper()
+    if "discount_value" in update: update["discount_value"] = float(update["discount_value"])
+    if "max_uses" in update: update["max_uses"] = int(update["max_uses"]) if update["max_uses"] else None
+    await db.coupons.update_one({"id": coupon_id}, {"$set": update})
+    return await db.coupons.find_one({"id": coupon_id}, {"_id": 0})
+
+@api_router.delete("/admin/coupons/{coupon_id}")
+async def delete_coupon(coupon_id: str, user=Depends(require_admin)):
+    await db.coupons.delete_one({"id": coupon_id})
+    return {"message": "Cupom excluido"}
+
+@api_router.post("/coupon/validate")
+async def validate_coupon_endpoint(request: Request):
+    body = await request.json()
+    code = body.get("code", "")
+    coupon = await validate_coupon(code)
+    return {"valid": True, "discount_type": coupon["discount_type"], "discount_value": coupon["discount_value"], "code": coupon["code"]}
+
 # ─── Subscription Plans ───
 @api_router.get("/subscription-plans")
 async def get_subscription_plans():
@@ -1188,6 +1296,7 @@ async def get_user_subscription(user=Depends(get_current_user)):
 async def subscribe_to_plan(request: Request, user=Depends(get_current_user)):
     body = await request.json()
     plan_id = body.get("plan_id")
+    coupon_code = body.get("coupon_code")
     plan = await db.subscription_plans.find_one({"id": plan_id, "is_active": True}, {"_id": 0})
     if not plan:
         raise HTTPException(status_code=404, detail="Plano nao encontrado")
@@ -1196,12 +1305,22 @@ async def subscribe_to_plan(request: Request, user=Depends(get_current_user)):
     if existing:
         raise HTTPException(status_code=400, detail="Voce ja possui uma assinatura ativa")
 
+    original_amount = float(plan["price"])
+    coupon = await validate_coupon(coupon_code) if coupon_code else None
+    if coupon and coupon.get("applies_to") not in ("all", "subscriptions"):
+        raise HTTPException(status_code=400, detail="Cupom nao valido para assinaturas")
+    amount, discount = apply_discount(original_amount, coupon)
+    if coupon:
+        await db.coupons.update_one({"id": coupon["id"]}, {"$inc": {"uses": 1}})
+
     now = datetime.now(timezone.utc)
     tx = {
         "id": str(uuid.uuid4()), "session_id": f"sub_pix_{str(uuid.uuid4())}", "type": "subscription",
         "campaign_id": None, "tier_id": None, "product_id": None,
         "plan_id": plan_id,
-        "amount": plan["price"], "platform_fee": round(plan["price"] * PLATFORM_FEE_PERCENT / 100, 2),
+        "amount": amount, "original_amount": original_amount, "discount": discount,
+        "coupon_code": coupon["code"] if coupon else None,
+        "platform_fee": round(amount * PLATFORM_FEE_PERCENT / 100, 2),
         "currency": "brl", "user_id": user["_id"], "user_email": user["email"],
         "user_name": user.get("name", ""), "payment_status": "awaiting_pix",
         "payment_method": "pix", "created_at": now.isoformat()
@@ -1211,7 +1330,8 @@ async def subscribe_to_plan(request: Request, user=Depends(get_current_user)):
     return {
         "message": "Faca o pagamento via Pix e envie o comprovante.",
         "pix_key": PIX_KEY, "pix_key_type": PIX_KEY_TYPE,
-        "amount": plan["price"],
+        "amount": amount, "original_amount": original_amount, "discount": discount,
+        "coupon_code": coupon["code"] if coupon else None,
         "comprovante_email": PIX_COMPROVANTE_EMAIL
     }
 

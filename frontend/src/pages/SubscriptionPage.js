@@ -4,6 +4,7 @@ import { subscriptionAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import { Crown, Check, QrCode, Copy, Mail } from "lucide-react";
+import CouponInput from "../components/CouponInput";
 
 export default function SubscriptionPage() {
   const { user } = useAuth();
@@ -15,6 +16,7 @@ export default function SubscriptionPage() {
   const [pixModal, setPixModal] = useState(null);
   const [copied, setCopied] = useState(false);
   const [processing, setProcessing] = useState(null);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -30,7 +32,7 @@ export default function SubscriptionPage() {
     if (!user) { navigate("/login"); return; }
     setProcessing(plan.id);
     try {
-      const res = await subscriptionAPI.subscribePix(plan.id);
+      const res = await subscriptionAPI.subscribePix(plan.id, appliedCoupon?.code || null);
       setPixModal({ ...res.data, plan_name: plan.name });
     } catch (err) { alert(err.response?.data?.detail || "Erro"); }
     finally { setProcessing(null); }
@@ -61,6 +63,10 @@ export default function SubscriptionPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {user && !mySub?.is_subscribed && plans.length > 0 && (
+          <div className="mb-6 max-w-md mx-auto"><CouponInput appliedCoupon={appliedCoupon} onApply={setAppliedCoupon} onRemove={() => setAppliedCoupon(null)} /></div>
         )}
 
         {plans.length > 0 ? (
@@ -109,6 +115,13 @@ export default function SubscriptionPage() {
             </div>
             <div className="text-center mb-4">
               <p className="font-['Outfit'] font-black text-3xl">R$ {(pixModal.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              {pixModal.discount > 0 && (
+                <div className="mt-1">
+                  <span className="text-sm text-zinc-400 line-through">R$ {(pixModal.original_amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                  <span className="text-sm text-green-600 font-bold ml-2">-R$ {(pixModal.discount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                  {pixModal.coupon_code && <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold border border-green-300">{pixModal.coupon_code}</span>}
+                </div>
+              )}
               <p className="text-sm text-zinc-500">{pixModal.plan_name}</p>
             </div>
             <div className="bg-zinc-50 border-2 border-zinc-950 p-4 mb-4">

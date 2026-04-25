@@ -99,7 +99,7 @@ export const subscriptionAPI = {
   updatePlan: (id, data) => api.put(`/subscription-plans/${id}`, data),
   deletePlan: (id) => api.delete(`/subscription-plans/${id}`),
   mySubscription: () => api.get("/user/subscription"),
-  subscribePix: (planId) => api.post("/subscribe", { plan_id: planId }),
+  subscribePix: (planId, couponCode) => api.post("/subscribe", { plan_id: planId, coupon_code: couponCode || null }),
 };
 
 export const liveAPI = {
@@ -123,6 +123,14 @@ export const recordingsAPI = {
 export const siteSettingsAPI = {
   get: () => api.get("/site-settings"),
   update: (data) => api.put("/site-settings", data),
+};
+
+export const couponAPI = {
+  getAll: () => api.get("/admin/coupons"),
+  create: (data) => api.post("/admin/coupons", data),
+  update: (id, data) => api.put(`/admin/coupons/${id}`, data),
+  delete: (id) => api.delete(`/admin/coupons/${id}`),
+  validate: (code) => api.post("/coupon/validate", { code }),
 };
 
 export const userAPI = {
