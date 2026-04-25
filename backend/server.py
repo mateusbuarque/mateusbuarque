@@ -1030,11 +1030,19 @@ async def get_videos(request: Request):
             result.append(vid)
         else:
             allowed = vid.get("allowed_plan_ids", [])
-            if await is_subscriber(user, allowed if allowed else None):
+            if user and await is_subscriber(user, allowed if allowed else None):
                 result.append(vid)
             else:
-                vid["locked"] = True
-                result.append(vid)
+                # Strip sensitive data for locked videos
+                safe_vid = {
+                    "id": vid["id"], "title": vid["title"],
+                    "description": vid.get("description", ""),
+                    "thumbnail_url": vid.get("thumbnail_url"),
+                    "created_at": vid.get("created_at"),
+                    "subscribers_only": True, "locked": True,
+                    "allowed_plan_ids": vid.get("allowed_plan_ids", []),
+                }
+                result.append(safe_vid)
     return result
 
 @api_router.put("/videos/{video_id}")
@@ -1054,10 +1062,28 @@ async def delete_video(video_id: str, user=Depends(require_admin)):
     return {"message": "Video excluido"}
 
 @api_router.get("/videos/{video_id}/stream")
-async def stream_video(video_id: str):
+async def stream_video(video_id: str, request: Request):
     video = await db.videos.find_one({"id": video_id}, {"_id": 0})
     if not video:
         raise HTTPException(status_code=404, detail="Video nao encontrado")
+    
+    # Check access control
+    if video.get("subscribers_only"):
+        user = await get_optional_user(request)
+        is_admin = user and user.get("role") == "admin"
+        if not is_admin:
+            if not user:
+                raise HTTPException(status_code=401, detail="Faca login para assistir este video")
+            allowed = video.get("allowed_plan_ids", [])
+            if not await is_subscriber(user, allowed if allowed else None):
+                raise HTTPException(status_code=403, detail="Video exclusivo para assinantes")
+    
+    if not video.get("is_public", True):
+        user = await get_optional_user(request)
+        is_admin = user and user.get("role") == "admin"
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Video privado")
+    
     try:
         data, _ = await asyncio.to_thread(get_object, video["storage_path"])
         return Response(content=data, media_type=video.get("content_type", "video/mp4"))
@@ -1474,10 +1500,28 @@ async def delete_recording(rec_id: str, user=Depends(require_admin)):
     return {"message": "Gravacao excluida"}
 
 @api_router.get("/recordings/{rec_id}/stream")
-async def stream_recording(rec_id: str):
+async def stream_recording(rec_id: str, request: Request):
     rec = await db.recordings.find_one({"id": rec_id}, {"_id": 0})
     if not rec:
         raise HTTPException(status_code=404, detail="Gravacao nao encontrada")
+    
+    # Check access control
+    if rec.get("subscribers_only"):
+        user = await get_optional_user(request)
+        is_admin = user and user.get("role") == "admin"
+        if not is_admin:
+            if not user:
+                raise HTTPException(status_code=401, detail="Faca login para assistir")
+            allowed = rec.get("allowed_plan_ids", [])
+            if not await is_subscriber(user, allowed if allowed else None):
+                raise HTTPException(status_code=403, detail="Gravacao exclusiva para assinantes")
+    
+    if not rec.get("is_public", True):
+        user = await get_optional_user(request)
+        is_admin = user and user.get("role") == "admin"
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Gravacao privada")
+    
     try:
         data, content_type = await asyncio.to_thread(get_object, rec["storage_path"])
         return Response(content=data, media_type="video/webm")

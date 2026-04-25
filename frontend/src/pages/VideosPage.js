@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { videosAPI } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { Play, Video } from "lucide-react";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { Play, Video, Lock } from "lucide-react";
 
 export default function VideosPage() {
   const { settings } = useSiteSettings();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [videos, setVideos] = useState([]);
   const [playing, setPlaying] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,6 +19,18 @@ export default function VideosPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const handlePlay = (vid) => {
+    if (vid.locked) {
+      if (!user) {
+        navigate("/login");
+      } else {
+        navigate("/assinatura");
+      }
+      return;
+    }
+    setPlaying(vid);
+  };
 
   const formatSize = (bytes) => {
     if (!bytes) return "";
@@ -43,7 +56,7 @@ export default function VideosPage() {
         </div>
 
         {/* Player */}
-        {playing && (
+        {playing && !playing.locked && (
           <div className="mb-10" data-testid="video-player-section">
             <video
               src={videosAPI.streamUrl(playing.id)}
@@ -66,8 +79,8 @@ export default function VideosPage() {
             {videos.map((vid, i) => (
               <button
                 key={vid.id}
-                onClick={() => setPlaying(vid)}
-                className={`brutalist-card overflow-hidden text-left group ${playing?.id === vid.id ? "ring-4 ring-[var(--site-primary,#FFDE00)]" : ""}`}
+                onClick={() => handlePlay(vid)}
+                className={`brutalist-card overflow-hidden text-left group ${playing?.id === vid.id ? "ring-4 ring-[var(--site-primary,#FFDE00)]" : ""} ${vid.locked ? "opacity-80" : ""}`}
                 data-testid={`video-tile-${i}`}
               >
                 <div className="relative aspect-video bg-zinc-900 border-b-2 border-zinc-950 overflow-hidden">
@@ -78,19 +91,36 @@ export default function VideosPage() {
                       <Play size={40} className="text-zinc-600" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                    <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Play size={24} className="text-zinc-950 ml-1" />
+                  {vid.locked ? (
+                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2">
+                      <Lock size={32} className="text-white" />
+                      <span className="text-white text-xs font-bold uppercase tracking-wider px-3 py-1 bg-amber-500 border border-amber-600">
+                        Exclusivo para assinantes
+                      </span>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                      <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Play size={24} className="text-zinc-950 ml-1" />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="p-4">
-                  <h3 className="font-bold text-zinc-950 truncate">{vid.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-zinc-950 truncate flex-1">{vid.title}</h3>
+                    {vid.locked && <Lock size={14} className="text-amber-600 flex-shrink-0" />}
+                  </div>
                   <div className="flex gap-3 text-xs text-zinc-500 mt-1">
                     <span>{new Date(vid.created_at).toLocaleDateString("pt-BR")}</span>
                     {vid.size > 0 && <span>{formatSize(vid.size)}</span>}
                   </div>
                   {vid.description && <p className="text-xs text-zinc-500 mt-2 line-clamp-2">{vid.description}</p>}
+                  {vid.locked && (
+                    <p className="text-xs text-amber-600 font-bold mt-2 uppercase">
+                      {!user ? "Faca login para assistir" : "Assine para desbloquear"}
+                    </p>
+                  )}
                 </div>
               </button>
             ))}
