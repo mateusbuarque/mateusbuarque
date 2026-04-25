@@ -621,6 +621,24 @@ function SiteSettingsTab({ config, onSave }) {
     footer_border_color: config?.footer_border_color || "#27272a",
     custom_links: config?.custom_links || [],
     custom_buttons: config?.custom_buttons || [],
+    header_bg_color: config?.header_bg_color || "#ffffff",
+    header_border_color: config?.header_border_color || "#09090B",
+    sidebar_bg_color: config?.sidebar_bg_color || "#ffffff",
+    sidebar_text_color: config?.sidebar_text_color || "#52525B",
+    sidebar_active_color: config?.sidebar_active_color || "#09090B",
+    marquee_bg_color: config?.marquee_bg_color || "#09090B",
+    marquee_text_color: config?.marquee_text_color || "#FF3B30",
+    card_bg_color: config?.card_bg_color || "#ffffff",
+    card_border_color: config?.card_border_color || "#09090B",
+    section_bg_alt_color: config?.section_bg_alt_color || "#fafafa",
+    badge_bg_color: config?.badge_bg_color || "#FFDE00",
+    badge_text_color: config?.badge_text_color || "#09090B",
+    progress_bar_color: config?.progress_bar_color || "#FFDE00",
+    progress_bg_color: config?.progress_bg_color || "#e4e4e7",
+    input_bg_color: config?.input_bg_color || "#ffffff",
+    input_border_color: config?.input_border_color || "#09090B",
+    input_text_color: config?.input_text_color || "#09090B",
+    stats_icon_bg_color: config?.stats_icon_bg_color || "#FFDE00",
     section_title_campaigns: config?.section_title_campaigns || "Campanhas",
     section_title_products: config?.section_title_products || "Projetos & Produtos",
     section_title_bio: config?.section_title_bio || "Biografia",
@@ -654,16 +672,56 @@ function SiteSettingsTab({ config, onSave }) {
   };
 
   const colorFields = [
-    { key: "primary_color", label: "Cor Primaria (destaques)" },
-    { key: "secondary_color", label: "Cor Secundaria (fundo escuro)" },
-    { key: "accent_color", label: "Cor Acentuada" },
-    { key: "bg_color", label: "Cor de Fundo do Site" },
-    { key: "text_color", label: "Cor Geral do Texto" },
-    { key: "heading_color", label: "Cor dos Titulos" },
-    { key: "subtitle_color", label: "Cor dos Subtitulos" },
-    { key: "link_color", label: "Cor dos Links" },
-    { key: "btn_color", label: "Cor dos Botoes" },
-    { key: "btn_text_color", label: "Cor do Texto dos Botoes" },
+    { group: "Cores Gerais", fields: [
+      { key: "primary_color", label: "Primaria (destaques)" },
+      { key: "secondary_color", label: "Secundaria (fundo escuro)" },
+      { key: "accent_color", label: "Cor de Destaque" },
+      { key: "bg_color", label: "Fundo do Site" },
+      { key: "text_color", label: "Texto Geral" },
+      { key: "heading_color", label: "Titulos" },
+      { key: "subtitle_color", label: "Subtitulos" },
+      { key: "link_color", label: "Links" },
+    ]},
+    { group: "Botoes", fields: [
+      { key: "btn_color", label: "Fundo do Botao" },
+      { key: "btn_text_color", label: "Texto do Botao" },
+    ]},
+    { group: "Header / Topo", fields: [
+      { key: "header_bg_color", label: "Fundo do Header" },
+      { key: "header_border_color", label: "Borda do Header" },
+    ]},
+    { group: "Menu Lateral", fields: [
+      { key: "sidebar_bg_color", label: "Fundo do Menu" },
+      { key: "sidebar_text_color", label: "Texto do Menu" },
+      { key: "sidebar_active_color", label: "Item Ativo" },
+    ]},
+    { group: "Marquee / Faixa", fields: [
+      { key: "marquee_bg_color", label: "Fundo da Faixa" },
+      { key: "marquee_text_color", label: "Texto da Faixa" },
+    ]},
+    { group: "Cards / Caixas", fields: [
+      { key: "card_bg_color", label: "Fundo do Card" },
+      { key: "card_border_color", label: "Borda do Card" },
+    ]},
+    { group: "Secoes / Fundo Alternativo", fields: [
+      { key: "section_bg_alt_color", label: "Fundo Secao Alternativa" },
+    ]},
+    { group: "Badges / Etiquetas", fields: [
+      { key: "badge_bg_color", label: "Fundo Badge" },
+      { key: "badge_text_color", label: "Texto Badge" },
+    ]},
+    { group: "Barra de Progresso", fields: [
+      { key: "progress_bar_color", label: "Cor da Barra" },
+      { key: "progress_bg_color", label: "Fundo da Barra" },
+    ]},
+    { group: "Campos de Entrada", fields: [
+      { key: "input_bg_color", label: "Fundo do Input" },
+      { key: "input_border_color", label: "Borda do Input" },
+      { key: "input_text_color", label: "Texto do Input" },
+    ]},
+    { group: "Icones / Estatisticas", fields: [
+      { key: "stats_icon_bg_color", label: "Fundo Icone Stats" },
+    ]},
   ];
 
   return (
@@ -701,25 +759,24 @@ function SiteSettingsTab({ config, onSave }) {
       </div>
 
       <div className="brutalist-card p-6 md:p-8">
-        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Cores</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {colorFields.map(({ key, label }) => (
-            <div key={key}>
-              <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">{label}</label>
-              <div className="flex gap-2 items-center">
-                <input type="color" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-10 h-10 border-2 border-zinc-950 cursor-pointer p-0" />
-                <input type="text" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="brutalist-input flex-1 text-sm" />
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Cores do Site</h3>
+        <div className="space-y-6">
+          {colorFields.map(({ group, fields }) => (
+            <div key={group}>
+              <h4 className="font-bold text-xs uppercase tracking-wider text-zinc-500 mb-3 pb-2 border-b border-zinc-200">{group}</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {fields.map(({ key, label }) => (
+                  <div key={key}>
+                    <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">{label}</label>
+                    <div className="flex gap-2 items-center">
+                      <input type="color" value={form[key] || "#000000"} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-10 h-10 border-2 border-zinc-950 cursor-pointer p-0" />
+                      <input type="text" value={form[key] || ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="brutalist-input flex-1 text-sm" />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
-        </div>
-        <div className="mt-4 p-4 border-2 border-zinc-300 flex gap-3 items-center">
-          <span className="text-xs font-bold uppercase text-zinc-500">Preview:</span>
-          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.primary_color }} title="Primaria" />
-          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.secondary_color }} title="Secundaria" />
-          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.accent_color }} title="Acentuada" />
-          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.bg_color }} title="Fundo" />
-          <div className="w-8 h-8 border-2 border-zinc-950" style={{ backgroundColor: form.text_color }} title="Texto" />
         </div>
       </div>
 

@@ -337,6 +337,24 @@ class SiteSettingsUpdate(BaseModel):
     nav_url_live: Optional[str] = None
     nav_url_videos: Optional[str] = None
     nav_url_subscription: Optional[str] = None
+    header_bg_color: Optional[str] = None
+    header_border_color: Optional[str] = None
+    sidebar_bg_color: Optional[str] = None
+    sidebar_text_color: Optional[str] = None
+    sidebar_active_color: Optional[str] = None
+    marquee_bg_color: Optional[str] = None
+    marquee_text_color: Optional[str] = None
+    card_bg_color: Optional[str] = None
+    card_border_color: Optional[str] = None
+    section_bg_alt_color: Optional[str] = None
+    badge_bg_color: Optional[str] = None
+    badge_text_color: Optional[str] = None
+    progress_bar_color: Optional[str] = None
+    progress_bg_color: Optional[str] = None
+    input_bg_color: Optional[str] = None
+    input_border_color: Optional[str] = None
+    input_text_color: Optional[str] = None
+    stats_icon_bg_color: Optional[str] = None
 
 class WithdrawRequest(BaseModel):
     amount: float
@@ -401,7 +419,25 @@ DEFAULT_SITE_SETTINGS = {
     "nav_label_subscription": "Assinatura",
     "nav_url_live": "/live",
     "nav_url_videos": "/videos",
-    "nav_url_subscription": "/assinatura"
+    "nav_url_subscription": "/assinatura",
+    "header_bg_color": "#ffffff",
+    "header_border_color": "#09090B",
+    "sidebar_bg_color": "#ffffff",
+    "sidebar_text_color": "#52525B",
+    "sidebar_active_color": "#09090B",
+    "marquee_bg_color": "#09090B",
+    "marquee_text_color": "#FF3B30",
+    "card_bg_color": "#ffffff",
+    "card_border_color": "#09090B",
+    "section_bg_alt_color": "#fafafa",
+    "badge_bg_color": "#FFDE00",
+    "badge_text_color": "#09090B",
+    "progress_bar_color": "#FFDE00",
+    "progress_bg_color": "#e4e4e7",
+    "input_bg_color": "#ffffff",
+    "input_border_color": "#09090B",
+    "input_text_color": "#09090B",
+    "stats_icon_bg_color": "#FFDE00"
 }
 
 # ─── Auth Routes ───

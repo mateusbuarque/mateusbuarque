@@ -75,7 +75,7 @@ export default function Header() {
 
   return (
     <>
-      <header data-testid="main-header" className="sticky top-0 z-40 backdrop-blur-xl bg-white/90 border-b-2" style={{ borderColor: settings.secondary_color }}>
+      <header data-testid="main-header" className="sticky top-0 z-40 backdrop-blur-xl border-b-2" style={{ backgroundColor: `${settings.header_bg_color || '#ffffff'}e6`, borderColor: settings.header_border_color || settings.secondary_color }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           {/* Menu button */}
           <button
@@ -123,9 +123,9 @@ export default function Header() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
 
           {/* Sidebar */}
-          <aside className="absolute top-0 left-0 h-full w-80 max-w-[85vw] bg-white border-r-2 shadow-2xl overflow-y-auto" style={{ borderColor: settings.secondary_color }} data-testid="sidebar-menu">
+          <aside className="absolute top-0 left-0 h-full w-80 max-w-[85vw] border-r-2 shadow-2xl overflow-y-auto" style={{ backgroundColor: settings.sidebar_bg_color || "#ffffff", borderColor: settings.header_border_color || settings.secondary_color }} data-testid="sidebar-menu">
             {/* Sidebar header */}
-            <div className="flex items-center justify-between p-4 border-b-2" style={{ borderColor: settings.secondary_color }}>
+            <div className="flex items-center justify-between p-4 border-b-2" style={{ borderColor: settings.header_border_color || settings.secondary_color }}>
               <span className="font-['Outfit'] font-black text-lg uppercase" style={{ color: settings.text_color }}>
                 {firstName}<span style={{ color: settings.primary_color }}>.</span>{lastName}
               </span>

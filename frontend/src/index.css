@@ -85,8 +85,8 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Brutalist card */
 .brutalist-card {
-    background: white;
-    border: 2px solid #09090B;
+    background: var(--site-card-bg, white);
+    border: 2px solid var(--site-card-border, #09090B);
     box-shadow: 6px 6px 0px 0px rgba(9,9,11,1);
     transition: all 0.2s ease;
 }
@@ -114,9 +114,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .brutalist-btn-dark {
-    background: #09090B;
-    color: #FFDE00;
-    border: 2px solid #09090B;
+    background: var(--site-secondary, #09090B);
+    color: var(--site-primary, #FFDE00);
+    border: 2px solid var(--site-secondary, #09090B);
     padding: 12px 32px;
     font-family: 'Outfit', sans-serif;
     font-weight: 900;
@@ -132,8 +132,9 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Brutalist input */
 .brutalist-input {
-    background: white;
-    border: 2px solid #09090B;
+    background: var(--site-input-bg, white);
+    border: 2px solid var(--site-input-border, #09090B);
+    color: var(--site-input-text, #09090B);
     padding: 12px 16px;
     font-family: 'DM Sans', sans-serif;
     font-weight: 500;
@@ -149,13 +150,13 @@ h1, h2, h3, h4, h5, h6 {
 .brutalist-progress {
     height: 16px;
     width: 100%;
-    background: #e4e4e7;
-    border: 2px solid #09090B;
+    background: var(--site-progress-bg, #e4e4e7);
+    border: 2px solid var(--site-card-border, #09090B);
     overflow: hidden;
 }
 .brutalist-progress-fill {
     height: 100%;
-    background: #FFDE00;
-    border-right: 2px solid #09090B;
+    background: var(--site-progress-bar, #FFDE00);
+    border-right: 2px solid var(--site-card-border, #09090B);
     transition: width 0.5s ease;
 }

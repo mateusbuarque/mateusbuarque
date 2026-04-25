@@ -93,7 +93,7 @@ export default function Home() {
 
               <div className="flex gap-8 mt-12">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center">
+                  <div className="w-12 h-12 bg-[var(--site-stats-icon-bg,#FFDE00)] border-2 border-zinc-950 flex items-center justify-center">
                     <BookOpen size={20} className="text-zinc-950" />
                   </div>
                   <div>
@@ -102,7 +102,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center">
+                  <div className="w-12 h-12 bg-[var(--site-stats-icon-bg,#FFDE00)] border-2 border-zinc-950 flex items-center justify-center">
                     <Users size={20} className="text-zinc-950" />
                   </div>
                   <div>
@@ -113,7 +113,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center">
+                  <div className="w-12 h-12 bg-[var(--site-stats-icon-bg,#FFDE00)] border-2 border-zinc-950 flex items-center justify-center">
                     <Target size={20} className="text-zinc-950" />
                   </div>
                   <div>
@@ -133,7 +133,7 @@ export default function Home() {
                     <img src={featured.cover_image} alt={featured.title} className="w-full h-72 object-cover" />
                   </div>
                   <div className="p-6">
-                    <span className="bg-[#FFDE00] text-zinc-950 px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-zinc-950 inline-block mb-3">
+                    <span className="bg-[var(--site-stats-icon-bg,#FFDE00)] text-zinc-950 px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-zinc-950 inline-block mb-3">
                       Em Destaque
                     </span>
                     <h3 className="font-['Outfit'] font-bold text-xl mb-3">{featured.title}</h3>
@@ -164,7 +164,7 @@ export default function Home() {
 
       {/* SHOWCASE / VITRINE */}
       {showcase.length > 0 && (
-        <section className="py-16 md:py-24 bg-zinc-50" data-testid="showcase-section">
+        <section className="py-16 md:py-24 bg-[var(--site-section-alt,#fafafa)]" data-testid="showcase-section">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-12" style={{ color: settings.heading_color }}>
               Projetos & Produtos
@@ -220,7 +220,7 @@ export default function Home() {
       </section>
 
       {/* BIOGRAPHY */}
-      <section id="biografia" className="py-24 md:py-32 bg-zinc-50" data-testid="biography-section">
+      <section id="biografia" className="py-24 md:py-32 bg-[var(--site-section-alt,#fafafa)]" data-testid="biography-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-12" style={{ color: settings.heading_color }}>
             {settings.nav_label_bio || "Biografia"}
@@ -272,7 +272,7 @@ export default function Home() {
       </section>
 
       {/* NEWSLETTER */}
-      <section className="bg-[#FFDE00] py-24 md:py-32 border-y-2 border-zinc-950" data-testid="newsletter-section">
+      <section className="bg-[var(--site-stats-icon-bg,#FFDE00)] py-24 md:py-32 border-y-2 border-zinc-950" data-testid="newsletter-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-['Outfit'] text-3xl md:text-5xl font-black uppercase tracking-tighter mb-4 text-zinc-950">
             Receba piadas (e spam de livros) no seu email.

@@ -6,7 +6,7 @@ export default function Marquee() {
   const parts = (settings.marquee_text || "").split("*").filter(Boolean).map(s => s.trim());
 
   return (
-    <div className="py-4 border-y-2 overflow-hidden" style={{ backgroundColor: settings.secondary_color, borderColor: settings.secondary_color, color: settings.primary_color }} data-testid="marquee-strip">
+    <div className="py-4 border-y-2 overflow-hidden" style={{ backgroundColor: settings.marquee_bg_color || settings.secondary_color, borderColor: settings.marquee_bg_color || settings.secondary_color, color: settings.marquee_text_color || settings.primary_color }} data-testid="marquee-strip">
       <MarqueeLib speed={50} gradient={false}>
         {parts.map((text, i) => (
           <span key={i}>

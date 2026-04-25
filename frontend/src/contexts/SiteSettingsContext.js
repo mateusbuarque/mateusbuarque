@@ -70,6 +70,29 @@ export function SiteSettingsProvider({ children }) {
     root.style.setProperty("--site-heading", settings.heading_color);
     root.style.setProperty("--site-subtitle", settings.subtitle_color);
     root.style.setProperty("--site-link", settings.link_color);
+    root.style.setProperty("--site-header-bg", settings.header_bg_color || "#ffffff");
+    root.style.setProperty("--site-header-border", settings.header_border_color || settings.secondary_color);
+    root.style.setProperty("--site-sidebar-bg", settings.sidebar_bg_color || "#ffffff");
+    root.style.setProperty("--site-sidebar-text", settings.sidebar_text_color || "#52525B");
+    root.style.setProperty("--site-sidebar-active", settings.sidebar_active_color || settings.text_color);
+    root.style.setProperty("--site-marquee-bg", settings.marquee_bg_color || settings.secondary_color);
+    root.style.setProperty("--site-marquee-text", settings.marquee_text_color || settings.accent_color);
+    root.style.setProperty("--site-card-bg", settings.card_bg_color || "#ffffff");
+    root.style.setProperty("--site-card-border", settings.card_border_color || settings.secondary_color);
+    root.style.setProperty("--site-section-alt", settings.section_bg_alt_color || "#fafafa");
+    root.style.setProperty("--site-badge-bg", settings.badge_bg_color || settings.primary_color);
+    root.style.setProperty("--site-badge-text", settings.badge_text_color || settings.secondary_color);
+    root.style.setProperty("--site-progress-bar", settings.progress_bar_color || settings.primary_color);
+    root.style.setProperty("--site-progress-bg", settings.progress_bg_color || "#e4e4e7");
+    root.style.setProperty("--site-input-bg", settings.input_bg_color || "#ffffff");
+    root.style.setProperty("--site-input-border", settings.input_border_color || settings.secondary_color);
+    root.style.setProperty("--site-input-text", settings.input_text_color || settings.text_color);
+    root.style.setProperty("--site-stats-icon-bg", settings.stats_icon_bg_color || settings.primary_color);
+    root.style.setProperty("--site-footer-bg", settings.footer_bg_color || settings.secondary_color);
+    root.style.setProperty("--site-footer-text", settings.footer_text_color || "#a1a1aa");
+    root.style.setProperty("--site-footer-heading", settings.footer_heading_color || settings.primary_color);
+    root.style.setProperty("--site-footer-link", settings.footer_link_color || "#a1a1aa");
+    root.style.setProperty("--site-footer-border", settings.footer_border_color || "#27272a");
   }, [settings, loaded]);
 
   return (
