@@ -80,6 +80,15 @@ export default function Home() {
                 <a href={settings.nav_url_bio || "#biografia"} className="brutalist-btn-dark flex items-center gap-2">
                   {settings.btn_label_hero_secondary || "Sobre Edegar"}
                 </a>
+                {(settings.custom_buttons || []).filter(b => b.label && b.url && b.position === "home").map((btn, i) => (
+                  <a key={i} href={btn.url} className={`flex items-center gap-2 font-bold text-sm uppercase tracking-wider px-6 py-3 border-2 border-zinc-950 transition-all ${
+                    btn.style === "secondary" ? "bg-zinc-950 text-white hover:bg-zinc-800" :
+                    btn.style === "outline" ? "bg-transparent text-zinc-950 hover:bg-zinc-100" :
+                    "hover:translate-y-[-2px]"
+                  }`} style={btn.style === "primary" ? { backgroundColor: settings.btn_color, color: settings.btn_text_color } : {}} data-testid={`hero-custom-btn-${i}`}>
+                    {btn.label}
+                  </a>
+                ))}
               </div>
 
               <div className="flex gap-8 mt-12">

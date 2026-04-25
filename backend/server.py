@@ -315,6 +315,13 @@ class SiteSettingsUpdate(BaseModel):
     showcase_images: Optional[list] = None
     custom_domain: Optional[str] = None
     footer_text: Optional[str] = None
+    footer_bg_color: Optional[str] = None
+    footer_text_color: Optional[str] = None
+    footer_heading_color: Optional[str] = None
+    footer_link_color: Optional[str] = None
+    footer_border_color: Optional[str] = None
+    custom_links: Optional[list] = None
+    custom_buttons: Optional[list] = None
     section_title_campaigns: Optional[str] = None
     section_title_products: Optional[str] = None
     section_title_bio: Optional[str] = None
@@ -373,6 +380,13 @@ DEFAULT_SITE_SETTINGS = {
     "showcase_images": [],
     "custom_domain": "",
     "footer_text": "Todos os direitos reservados.",
+    "footer_bg_color": "#09090B",
+    "footer_text_color": "#a1a1aa",
+    "footer_heading_color": "#FFDE00",
+    "footer_link_color": "#a1a1aa",
+    "footer_border_color": "#27272a",
+    "custom_links": [],
+    "custom_buttons": [],
     "section_title_campaigns": "Campanhas",
     "section_title_products": "Projetos & Produtos",
     "section_title_bio": "Biografia",

@@ -614,6 +614,13 @@ function SiteSettingsTab({ config, onSave }) {
     link_color: config?.link_color || "#3F3F46",
     custom_domain: config?.custom_domain || "",
     footer_text: config?.footer_text || "Todos os direitos reservados.",
+    footer_bg_color: config?.footer_bg_color || "#09090B",
+    footer_text_color: config?.footer_text_color || "#a1a1aa",
+    footer_heading_color: config?.footer_heading_color || "#FFDE00",
+    footer_link_color: config?.footer_link_color || "#a1a1aa",
+    footer_border_color: config?.footer_border_color || "#27272a",
+    custom_links: config?.custom_links || [],
+    custom_buttons: config?.custom_buttons || [],
     section_title_campaigns: config?.section_title_campaigns || "Campanhas",
     section_title_products: config?.section_title_products || "Projetos & Produtos",
     section_title_bio: config?.section_title_bio || "Biografia",
@@ -808,11 +815,87 @@ function SiteSettingsTab({ config, onSave }) {
       </div>
 
       <div className="brutalist-card p-6 md:p-8">
-        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Rodape</h3>
-        <div>
-          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Texto do Rodape</label>
-          <input type="text" value={form.footer_text} onChange={(e) => setForm({ ...form, footer_text: e.target.value })} className="brutalist-input" data-testid="settings-footer-text" />
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-6">Rodape (Fundo Secundario)</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Texto do Rodape</label>
+            <input type="text" value={form.footer_text} onChange={(e) => setForm({ ...form, footer_text: e.target.value })} className="brutalist-input" data-testid="settings-footer-text" />
+          </div>
+          <h4 className="font-bold text-sm uppercase text-zinc-700 pt-2">Cores do Rodape</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { key: "footer_bg_color", label: "Fundo do Rodape" },
+              { key: "footer_text_color", label: "Texto do Rodape" },
+              { key: "footer_heading_color", label: "Titulos do Rodape" },
+              { key: "footer_link_color", label: "Links do Rodape" },
+              { key: "footer_border_color", label: "Borda/Separador" },
+            ].map(({ key, label }) => (
+              <div key={key}>
+                <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">{label}</label>
+                <div className="flex gap-2 items-center">
+                  <input type="color" value={form[key] || "#000000"} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-10 h-10 border-2 border-zinc-950 cursor-pointer p-0" />
+                  <input type="text" value={form[key] || ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="brutalist-input flex-1 text-sm" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 p-4 border-2 border-zinc-300">
+            <span className="text-xs font-bold uppercase text-zinc-500 mr-3">Preview:</span>
+            <div className="mt-2 p-3 flex gap-3 items-center" style={{ backgroundColor: form.footer_bg_color || "#09090B", borderTop: `2px solid ${form.footer_border_color || "#27272a"}` }}>
+              <span className="font-bold text-sm" style={{ color: form.footer_heading_color || "#FFDE00" }}>Titulo</span>
+              <span className="text-sm" style={{ color: form.footer_text_color || "#a1a1aa" }}>Texto</span>
+              <span className="text-sm underline" style={{ color: form.footer_link_color || "#a1a1aa" }}>Link</span>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-4">Links Customizados</h3>
+        <p className="text-xs text-zinc-500 mb-4">Adicione links que aparecem no menu lateral e no rodape do site</p>
+        <div className="space-y-2 mb-4">
+          {(form.custom_links || []).map((link, i) => (
+            <div key={i} className="flex items-center gap-2 bg-zinc-50 border-2 border-zinc-200 p-3">
+              <div className="flex-1 grid grid-cols-2 gap-2">
+                <input type="text" value={link.label} onChange={(e) => { const links = [...form.custom_links]; links[i] = { ...links[i], label: e.target.value }; setForm({ ...form, custom_links: links }); }} className="brutalist-input text-sm" placeholder="Nome" />
+                <input type="text" value={link.url} onChange={(e) => { const links = [...form.custom_links]; links[i] = { ...links[i], url: e.target.value }; setForm({ ...form, custom_links: links }); }} className="brutalist-input text-sm" placeholder="URL (ex: /pagina ou https://...)" />
+              </div>
+              <button onClick={() => setForm({ ...form, custom_links: form.custom_links.filter((_, j) => j !== i) })} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50 flex-shrink-0" data-testid={`remove-link-${i}`}><Trash2 size={14} /></button>
+            </div>
+          ))}
+        </div>
+        <button onClick={() => setForm({ ...form, custom_links: [...(form.custom_links || []), { label: "", url: "" }] })} className="flex items-center gap-2 px-4 py-2 border-2 border-zinc-950 font-bold text-xs uppercase hover:bg-zinc-100" data-testid="add-link-btn"><Plus size={14} /> Adicionar Link</button>
+      </div>
+
+      <div className="brutalist-card p-6 md:p-8">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase mb-4">Botoes Customizados</h3>
+        <p className="text-xs text-zinc-500 mb-4">Adicione botoes que aparecem na home ou no menu do site</p>
+        <div className="space-y-2 mb-4">
+          {(form.custom_buttons || []).map((btn, i) => (
+            <div key={i} className="bg-zinc-50 border-2 border-zinc-200 p-3">
+              <div className="flex items-start gap-2">
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  <input type="text" value={btn.label} onChange={(e) => { const btns = [...form.custom_buttons]; btns[i] = { ...btns[i], label: e.target.value }; setForm({ ...form, custom_buttons: btns }); }} className="brutalist-input text-sm" placeholder="Texto do botao" />
+                  <input type="text" value={btn.url} onChange={(e) => { const btns = [...form.custom_buttons]; btns[i] = { ...btns[i], url: e.target.value }; setForm({ ...form, custom_buttons: btns }); }} className="brutalist-input text-sm" placeholder="URL (ex: /loja ou https://...)" />
+                </div>
+                <button onClick={() => setForm({ ...form, custom_buttons: form.custom_buttons.filter((_, j) => j !== i) })} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50 flex-shrink-0" data-testid={`remove-btn-${i}`}><Trash2 size={14} /></button>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <select value={btn.style || "primary"} onChange={(e) => { const btns = [...form.custom_buttons]; btns[i] = { ...btns[i], style: e.target.value }; setForm({ ...form, custom_buttons: btns }); }} className="brutalist-input text-xs w-auto">
+                  <option value="primary">Primario (destaque)</option>
+                  <option value="secondary">Secundario (escuro)</option>
+                  <option value="outline">Contorno</option>
+                </select>
+                <select value={btn.position || "home"} onChange={(e) => { const btns = [...form.custom_buttons]; btns[i] = { ...btns[i], position: e.target.value }; setForm({ ...form, custom_buttons: btns }); }} className="brutalist-input text-xs w-auto">
+                  <option value="home">Home (hero)</option>
+                  <option value="menu">Menu lateral</option>
+                  <option value="footer">Rodape</option>
+                </select>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button onClick={() => setForm({ ...form, custom_buttons: [...(form.custom_buttons || []), { label: "", url: "", style: "primary", position: "home" }] })} className="flex items-center gap-2 px-4 py-2 border-2 border-zinc-950 font-bold text-xs uppercase hover:bg-zinc-100" data-testid="add-btn-btn"><Plus size={14} /> Adicionar Botao</button>
       </div>
 
       <div className="brutalist-card p-6 md:p-8">

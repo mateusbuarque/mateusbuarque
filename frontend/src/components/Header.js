@@ -173,6 +173,36 @@ export default function Header() {
                 </div>
               ))}
 
+              {/* Custom Links */}
+              {(settings.custom_links || []).filter(l => l.label && l.url).length > 0 && (
+                <div>
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-400 mb-3 px-3">Links</h3>
+                  <div className="space-y-1">
+                    {(settings.custom_links || []).filter(l => l.label && l.url).map((link, i) => (
+                      <a key={i} href={link.url} onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50 font-bold text-sm uppercase tracking-wider transition-all" data-testid={`sidebar-custom-link-${i}`}>
+                        <span className="w-[18px] h-[18px] border-2 border-current flex items-center justify-center text-xs">+</span>
+                        <span>{link.label}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Menu Buttons */}
+              {(settings.custom_buttons || []).filter(b => b.label && b.url && b.position === "menu").length > 0 && (
+                <div className="space-y-2">
+                  {(settings.custom_buttons || []).filter(b => b.label && b.url && b.position === "menu").map((btn, i) => (
+                    <a key={i} href={btn.url} onClick={() => setSidebarOpen(false)} className={`block mx-3 px-4 py-2.5 font-bold text-sm uppercase tracking-wider text-center border-2 border-zinc-950 transition-all ${
+                      btn.style === "secondary" ? "bg-zinc-950 text-white hover:bg-zinc-800" :
+                      btn.style === "outline" ? "bg-transparent text-zinc-950 hover:bg-zinc-100" :
+                      "hover:translate-y-[-1px]"
+                    }`} style={btn.style === "primary" ? { backgroundColor: settings.btn_color || "#FFDE00", color: settings.btn_text_color || "#09090B", borderColor: settings.btn_color || "#FFDE00" } : {}} data-testid={`sidebar-custom-btn-${i}`}>
+                      {btn.label}
+                    </a>
+                  ))}
+                </div>
+              )}
+
               {/* User logout */}
               {user && (
                 <div className="border-t-2 border-zinc-200 pt-4">
