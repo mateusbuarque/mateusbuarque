@@ -1495,7 +1495,7 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
     onRefresh();
   };
 
-  const AccessToggles = ({ data, setData, prefix }) => (
+  const AccessToggles = ({ data, setData, prefix, features, newVal, setNewVal, onAdd, onRemove }) => (
     <div className="border-2 border-zinc-200 p-4">
       <p className="font-bold text-xs uppercase tracking-wider text-zinc-700 mb-3">O que este plano oferece</p>
       <div className="grid grid-cols-2 gap-3">
@@ -1511,28 +1511,32 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
           </label>
         ))}
       </div>
+
+      {/* Custom items */}
+      {(features || []).length > 0 && (
+        <div className="mt-3 pt-3 border-t border-zinc-200 space-y-2">
+          {features.map((f, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="w-4 h-4 border-2 border-green-500 bg-green-100 flex items-center justify-center flex-shrink-0"><span className="text-green-600 text-xs font-bold">+</span></span>
+              <span className="text-sm font-bold text-zinc-700 flex-1">{f}</span>
+              <button type="button" onClick={() => onRemove(i)} className="text-red-500 hover:text-red-700" data-testid={`${prefix}-remove-feature-${i}`}><X size={14} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 pt-3 border-t border-zinc-200">
+        <p className="text-xs text-zinc-500 mb-2">Adicionar item personalizado:</p>
+        <div className="flex gap-2">
+          <input type="text" value={newVal} onChange={(e) => setNewVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onAdd())} placeholder="Ex: Acesso a conteudo exclusivo" className="brutalist-input text-sm flex-1" data-testid={`${prefix}-feature-input`} />
+          <button type="button" onClick={onAdd} className="px-3 py-2 border-2 border-zinc-950 font-bold text-xs uppercase hover:bg-zinc-100" data-testid={`${prefix}-add-feature`}>+</button>
+        </div>
+      </div>
+
       <label className="flex items-center gap-2 cursor-pointer mt-3 pt-3 border-t border-zinc-200">
         <input type="checkbox" checked={data.highlight || false} onChange={(e) => setData({ ...data, highlight: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" data-testid={`${prefix}-highlight`} />
         <span className="text-sm font-bold text-amber-700">Destacar plano (recomendado)</span>
       </label>
-    </div>
-  );
-
-  const FeaturesEditor = ({ features, newVal, setNewVal, onAdd, onRemove, prefix }) => (
-    <div>
-      <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Beneficios / Vantagens</label>
-      <div className="space-y-2 mb-2">
-        {(features || []).map((f, i) => (
-          <div key={i} className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 px-3 py-2">
-            <span className="text-sm flex-1">{f}</span>
-            <button type="button" onClick={() => onRemove(i)} className="text-red-500 hover:text-red-700 font-bold text-xs" data-testid={`${prefix}-remove-feature-${i}`}><X size={14} /></button>
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <input type="text" value={newVal} onChange={(e) => setNewVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onAdd())} placeholder="Ex: Acesso a conteudo exclusivo" className="brutalist-input text-sm flex-1" data-testid={`${prefix}-feature-input`} />
-        <button type="button" onClick={onAdd} className="px-3 py-2 border-2 border-zinc-950 font-bold text-xs uppercase hover:bg-zinc-100" data-testid={`${prefix}-add-feature`}>+</button>
-      </div>
     </div>
   );
 
@@ -1555,8 +1559,7 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
               <input type="number" step="0.01" placeholder="Preco (R$)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="brutalist-input text-sm" data-testid="plan-price-input" />
               <input type="number" placeholder="Duracao (dias)" value={form.duration_days} onChange={(e) => setForm({ ...form, duration_days: e.target.value })} className="brutalist-input text-sm" />
             </div>
-            <AccessToggles data={form} setData={setForm} prefix="create" />
-            <FeaturesEditor features={form.features} newVal={newFeature} setNewVal={setNewFeature} onAdd={() => addFeature(false)} onRemove={(i) => removeFeature(i, false)} prefix="create" />
+            <AccessToggles data={form} setData={setForm} prefix="create" features={form.features} newVal={newFeature} setNewVal={setNewFeature} onAdd={() => addFeature(false)} onRemove={(i) => removeFeature(i, false)} />
             <div className="flex gap-2">
               <button onClick={handleCreate} disabled={saving} className="brutalist-btn text-sm" data-testid="save-plan-btn">{saving ? "Salvando..." : "Criar Plano"}</button>
               <button onClick={() => { setShowCreate(false); setForm(emptyForm); }} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
@@ -1630,8 +1633,7 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
                   <input type="number" value={editForm.duration_days} onChange={(e) => setEditForm({ ...editForm, duration_days: e.target.value })} className="brutalist-input text-sm" data-testid="edit-plan-duration" />
                 </div>
               </div>
-              <AccessToggles data={editForm} setData={setEditForm} prefix="edit" />
-              <FeaturesEditor features={editForm.features} newVal={editNewFeature} setNewVal={setEditNewFeature} onAdd={() => addFeature(true)} onRemove={(i) => removeFeature(i, true)} prefix="edit" />
+              <AccessToggles data={editForm} setData={setEditForm} prefix="edit" features={editForm.features} newVal={editNewFeature} setNewVal={setEditNewFeature} onAdd={() => addFeature(true)} onRemove={(i) => removeFeature(i, true)} />
               <div className="flex gap-3 pt-2">
                 <button onClick={handleEdit} disabled={saving} className="brutalist-btn text-sm flex-1" data-testid="save-edit-plan-btn">{saving ? "Salvando..." : "Salvar Alteracoes"}</button>
                 <button onClick={() => setEditingPlan(null)} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
