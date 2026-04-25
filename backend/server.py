@@ -1387,8 +1387,13 @@ async def seed_admin():
             "created_at": datetime.now(timezone.utc).isoformat()
         })
         logger.info(f"Admin seeded: {admin_email}")
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+    else:
+        # Always ensure password and role are correct on startup
+        updates = {"role": "admin"}
+        if not verify_password(admin_password, existing.get("password_hash", "")):
+            updates["password_hash"] = hash_password(admin_password)
+            logger.info(f"Admin password updated for: {admin_email}")
+        await db.users.update_one({"email": admin_email}, {"$set": updates})
 
     if not await db.site_settings.find_one({"key": "biography"}):
         await db.site_settings.insert_one({
