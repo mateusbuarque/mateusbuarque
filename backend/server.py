@@ -1365,6 +1365,65 @@ async def subscribe_to_plan(request: Request, user=Depends(get_current_user)):
 async def get_all_subscriptions(user=Depends(require_admin)):
     return await db.subscriptions.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
+
+# ─── Community Posts ───
+@api_router.get("/community/posts")
+async def get_community_posts(request: Request):
+    user = await get_optional_user(request)
+    is_admin = user and user.get("role") == "admin"
+    if is_admin:
+        return await db.community_posts.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Faca login para acessar a comunidade")
+    
+    sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"}, {"_id": 0})
+    if not sub:
+        raise HTTPException(status_code=403, detail="Exclusivo para assinantes")
+    
+    user_plan_id = sub.get("plan_id")
+    all_posts = await db.community_posts.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    result = []
+    for post in all_posts:
+        target = post.get("target_plans", [])
+        if not target or user_plan_id in target:
+            result.append(post)
+    return result
+
+@api_router.post("/admin/community/posts")
+async def create_community_post(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    post = {
+        "id": str(uuid.uuid4()),
+        "title": body.get("title", ""),
+        "content": body.get("content", ""),
+        "post_type": body.get("post_type", "text"),
+        "media_url": body.get("media_url", ""),
+        "links": body.get("links", []),
+        "coupon_code": body.get("coupon_code", ""),
+        "target_plans": body.get("target_plans", []),
+        "pinned": body.get("pinned", False),
+        "author_name": user.get("name", "Admin"),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.community_posts.insert_one(post)
+    post.pop("_id", None)
+    return post
+
+@api_router.put("/admin/community/posts/{post_id}")
+async def update_community_post(post_id: str, request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    allowed = ("title", "content", "post_type", "media_url", "links", "coupon_code", "target_plans", "pinned")
+    update = {k: v for k, v in body.items() if k in allowed}
+    await db.community_posts.update_one({"id": post_id}, {"$set": update})
+    return await db.community_posts.find_one({"id": post_id}, {"_id": 0})
+
+@api_router.delete("/admin/community/posts/{post_id}")
+async def delete_community_post(post_id: str, user=Depends(require_admin)):
+    await db.community_posts.delete_one({"id": post_id})
+    return {"message": "Post excluido"}
+
+
 # ─── Live Streaming ───
 live_state = {
     "is_live": False,

@@ -15,6 +15,7 @@ import OrderHistory from "./pages/OrderHistory";
 import LivePage from "./pages/LivePage";
 import VideosPage from "./pages/VideosPage";
 import SubscriptionPage from "./pages/SubscriptionPage";
+import CommunityPage from "./pages/CommunityPage";
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
               <Route path="/live" element={<LivePage />} />
               <Route path="/videos" element={<VideosPage />} />
               <Route path="/assinatura" element={<SubscriptionPage />} />
+              <Route path="/comunidade" element={<CommunityPage />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/payment/success" element={<PaymentSuccess />} />

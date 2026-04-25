@@ -133,6 +133,13 @@ export const couponAPI = {
   validate: (code) => api.post("/coupon/validate", { code }),
 };
 
+export const communityAPI = {
+  getPosts: () => api.get("/community/posts"),
+  createPost: (data) => api.post("/admin/community/posts", data),
+  updatePost: (id, data) => api.put(`/admin/community/posts/${id}`, data),
+  deletePost: (id) => api.delete(`/admin/community/posts/${id}`),
+};
+
 export const userAPI = {
   orders: () => api.get("/user/orders"),
 };

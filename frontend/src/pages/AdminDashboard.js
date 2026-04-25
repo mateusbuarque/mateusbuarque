@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI, videosAPI, subscriptionAPI, liveAPI, couponAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play, Crown, Lock, Tag, Percent } from "lucide-react";
+import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI, videosAPI, subscriptionAPI, liveAPI, couponAPI, communityAPI } from "../lib/api";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play, Crown, Lock, Tag, Percent, Users, Pin, Link2 } from "lucide-react";
 import ImageUpload from "../components/ImageUpload";
 import AdminLivePanel from "../components/AdminLivePanel";
 import VisibilitySelector from "../components/VisibilitySelector";
@@ -25,6 +25,7 @@ export default function AdminDashboard() {
   const [subPlans, setSubPlans] = useState([]);
   const [allSubs, setAllSubs] = useState([]);
   const [coupons, setCoupons] = useState([]);
+  const [communityPosts, setCommunityPosts] = useState([]);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
@@ -42,11 +43,12 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes, vidRes, plansRes, allSubsRes, couponsRes] = await Promise.all([
+      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes, vidRes, plansRes, allSubsRes, couponsRes, commRes] = await Promise.all([
         campaignAPI.getAll(), productAPI.getAll(), adminAPI.stats(),
         galleryAPI.getAll(), bioAPI.get(), newsletterAPI.getSubscribers(),
         siteSettingsAPI.get(), showcaseAPI.getAll(), videosAPI.getAll(),
         subscriptionAPI.plans(), adminAPI.subscriptions(), couponAPI.getAll(),
+        communityAPI.getPosts(),
       ]);
       setCampaigns(campRes.data);
       setProducts(prodRes.data);
@@ -60,6 +62,7 @@ export default function AdminDashboard() {
       setSubPlans(plansRes.data);
       setAllSubs(allSubsRes.data);
       setCoupons(couponsRes.data);
+      setCommunityPosts(commRes.data);
     } catch (err) { console.error(err); }
   };
 
@@ -96,6 +99,7 @@ export default function AdminDashboard() {
     { id: "videos", label: "Videos", icon: <Video size={16} /> },
     { id: "subscriptions", label: "Assinaturas", icon: <Crown size={16} /> },
     { id: "coupons", label: "Cupons", icon: <Tag size={16} /> },
+    { id: "community", label: "Comunidade", icon: <Users size={16} /> },
     { id: "showcase", label: "Vitrine", icon: <Sparkles size={16} /> },
     { id: "gallery", label: "Galeria", icon: <Image size={16} /> },
     { id: "bio", label: "Biografia", icon: <FileText size={16} /> },
@@ -275,6 +279,7 @@ export default function AdminDashboard() {
         {/* Subscriptions Tab */}
         {tab === "subscriptions" && <SubscriptionsTab plans={subPlans} allSubs={allSubs} onRefresh={loadData} />}
         {tab === "coupons" && <CouponsTab coupons={coupons} onRefresh={loadData} />}
+        {tab === "community" && <CommunityTab posts={communityPosts} plans={subPlans} onRefresh={loadData} />}
 
         {/* Products Tab */}
         {tab === "products" && (
@@ -1833,6 +1838,200 @@ function CouponsTab({ coupons, onRefresh }) {
               <button onClick={() => setEditing(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
             </div>
             <CouponForm data={editForm} setData={setEditForm} onSave={handleEdit} onCancel={() => setEditing(null)} btnLabel="Salvar Alteracoes" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function CommunityTab({ posts, plans, onRefresh }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const emptyForm = { title: "", content: "", post_type: "text", media_url: "", links: [], coupon_code: "", target_plans: [], pinned: false };
+  const [form, setForm] = useState(emptyForm);
+  const [editForm, setEditForm] = useState(emptyForm);
+
+  const handleCreate = async () => {
+    if (!form.title) { alert("Preencha o titulo"); return; }
+    setSaving(true);
+    try {
+      await communityAPI.createPost(form);
+      setForm(emptyForm);
+      setShowCreate(false);
+      onRefresh();
+    } catch (err) { alert("Erro ao criar post"); }
+    finally { setSaving(false); }
+  };
+
+  const startEdit = (p) => {
+    setEditing(p);
+    setEditForm({ title: p.title, content: p.content || "", post_type: p.post_type || "text", media_url: p.media_url || "", links: p.links || [], coupon_code: p.coupon_code || "", target_plans: p.target_plans || [], pinned: p.pinned || false });
+  };
+
+  const handleEdit = async () => {
+    setSaving(true);
+    try {
+      await communityAPI.updatePost(editing.id, editForm);
+      setEditing(null);
+      onRefresh();
+    } catch (err) { alert("Erro"); }
+    finally { setSaving(false); }
+  };
+
+  const deletePost = async (id) => {
+    if (!window.confirm("Excluir post?")) return;
+    await communityAPI.deletePost(id);
+    onRefresh();
+  };
+
+  const togglePin = async (p) => {
+    await communityAPI.updatePost(p.id, { pinned: !p.pinned });
+    onRefresh();
+  };
+
+  const PostForm = ({ data, setData, onSave, onCancel, btnLabel }) => (
+    <div className="space-y-4 max-w-2xl">
+      <div>
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Titulo</label>
+        <input type="text" value={data.title} onChange={(e) => setData({ ...data, title: e.target.value })} className="brutalist-input text-sm" data-testid="community-title-input" />
+      </div>
+      <div>
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Conteudo / Mensagem</label>
+        <textarea value={data.content} onChange={(e) => setData({ ...data, content: e.target.value })} className="brutalist-input text-sm min-h-[120px]" placeholder="Escreva sua mensagem para a comunidade..." data-testid="community-content-input" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Tipo de Post</label>
+          <select value={data.post_type} onChange={(e) => setData({ ...data, post_type: e.target.value })} className="brutalist-input text-sm">
+            <option value="text">Novidade / Texto</option>
+            <option value="coupon">Cupom</option>
+            <option value="video">Video</option>
+            <option value="link">Link</option>
+          </select>
+        </div>
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">URL de Midia (opcional)</label>
+          <input type="text" value={data.media_url} onChange={(e) => setData({ ...data, media_url: e.target.value })} className="brutalist-input text-sm" placeholder="https://..." />
+        </div>
+      </div>
+      {data.post_type === "coupon" && (
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Codigo do Cupom</label>
+          <input type="text" value={data.coupon_code} onChange={(e) => setData({ ...data, coupon_code: e.target.value.toUpperCase() })} className="brutalist-input text-sm font-mono" placeholder="DESCONTO20" />
+        </div>
+      )}
+      <div>
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Links</label>
+        {(data.links || []).map((link, i) => (
+          <div key={i} className="flex gap-2 mb-2">
+            <input type="text" value={link.label} onChange={(e) => { const l = [...data.links]; l[i] = { ...l[i], label: e.target.value }; setData({ ...data, links: l }); }} className="brutalist-input text-sm flex-1" placeholder="Nome do link" />
+            <input type="text" value={link.url} onChange={(e) => { const l = [...data.links]; l[i] = { ...l[i], url: e.target.value }; setData({ ...data, links: l }); }} className="brutalist-input text-sm flex-1" placeholder="https://..." />
+            <button onClick={() => setData({ ...data, links: data.links.filter((_, j) => j !== i) })} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
+          </div>
+        ))}
+        <button onClick={() => setData({ ...data, links: [...(data.links || []), { label: "", url: "" }] })} className="flex items-center gap-1 text-xs font-bold uppercase text-zinc-500 hover:text-zinc-950"><Plus size={14} /> Adicionar link</button>
+      </div>
+      <div className="border-2 border-zinc-200 p-4">
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-3">Enviar para quais planos?</label>
+        <label className="flex items-center gap-2 cursor-pointer mb-2">
+          <input type="radio" checked={data.target_plans.length === 0} onChange={() => setData({ ...data, target_plans: [] })} className="w-4 h-4" />
+          <span className="text-sm font-bold text-zinc-700">Todos os planos</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer mb-3">
+          <input type="radio" checked={data.target_plans.length > 0} onChange={() => setData({ ...data, target_plans: plans.length > 0 ? [plans[0].id] : [] })} className="w-4 h-4" />
+          <span className="text-sm font-bold text-zinc-700">Planos especificos</span>
+        </label>
+        {data.target_plans.length > 0 && (
+          <div className="pl-6 space-y-2">
+            {plans.map(plan => (
+              <label key={plan.id} className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={data.target_plans.includes(plan.id)} onChange={(e) => {
+                  const newPlans = e.target.checked ? [...data.target_plans, plan.id] : data.target_plans.filter(id => id !== plan.id);
+                  setData({ ...data, target_plans: newPlans.length > 0 ? newPlans : [plans[0]?.id].filter(Boolean) });
+                }} className="w-4 h-4 border-2 border-zinc-950" />
+                <span className="text-sm text-zinc-700">{plan.name} - R$ {parseFloat(plan.price).toFixed(2)}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" checked={data.pinned} onChange={(e) => setData({ ...data, pinned: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" />
+        <span className="text-sm font-bold text-amber-700">Fixar no topo</span>
+      </label>
+      <div className="flex gap-2 pt-2">
+        <button onClick={onSave} disabled={saving} className="brutalist-btn text-sm" data-testid="community-save-btn">{saving ? "Salvando..." : btnLabel}</button>
+        <button onClick={onCancel} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
+      </div>
+    </div>
+  );
+
+  const typeLabel = { text: "Novidade", coupon: "Cupom", video: "Video", link: "Link" };
+  const getPlanName = (id) => plans.find(p => p.id === id)?.name || id;
+
+  return (
+    <div data-testid="community-tab">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase">Comunidade</h3>
+        <button onClick={() => setShowCreate(!showCreate)} className="brutalist-btn flex items-center gap-2 text-sm" data-testid="create-community-post-btn">
+          <Plus size={16} /> Novo Post
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="brutalist-card p-6 mb-6">
+          <h4 className="font-bold text-sm uppercase mb-4">Novo Post na Comunidade</h4>
+          <PostForm data={form} setData={setForm} onSave={handleCreate} onCancel={() => { setShowCreate(false); setForm(emptyForm); }} btnLabel="Publicar" />
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {posts.map(p => (
+          <div key={p.id} className={`brutalist-card p-4 ${p.pinned ? "border-l-4 border-l-amber-400" : ""}`} data-testid={`community-admin-post-${p.id}`}>
+            <div className="flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  {p.pinned && <Pin size={14} className="text-amber-600" />}
+                  <span className="px-2 py-0.5 text-xs font-bold uppercase bg-zinc-100 border border-zinc-300 text-zinc-600">{typeLabel[p.post_type] || "Texto"}</span>
+                  {p.target_plans && p.target_plans.length > 0 ? (
+                    <span className="text-xs text-amber-600 font-bold">{p.target_plans.map(id => getPlanName(id)).join(", ")}</span>
+                  ) : (
+                    <span className="text-xs text-green-600 font-bold">Todos os planos</span>
+                  )}
+                  <span className="text-xs text-zinc-400">{new Date(p.created_at).toLocaleDateString("pt-BR")}</span>
+                </div>
+                <h4 className="font-bold text-zinc-950">{p.title}</h4>
+                {p.content && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{p.content}</p>}
+                {p.coupon_code && <span className="inline-block mt-1 px-2 py-0.5 font-mono font-bold text-xs bg-green-50 border border-green-300 text-green-700">{p.coupon_code}</span>}
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => togglePin(p)} className={`p-2 border-2 ${p.pinned ? "border-amber-500 text-amber-600 bg-amber-50" : "border-zinc-300 text-zinc-400 hover:bg-zinc-100"}`} title={p.pinned ? "Desfixar" : "Fixar"}><Pin size={14} /></button>
+                <button onClick={() => startEdit(p)} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100"><Edit2 size={14} /></button>
+                <button onClick={() => deletePost(p.id)} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {posts.length === 0 && (
+          <div className="brutalist-card p-8 text-center">
+            <Users size={36} className="mx-auto mb-3 text-zinc-300" />
+            <p className="text-zinc-500 font-bold uppercase text-sm">Nenhum post na comunidade</p>
+            <p className="text-xs text-zinc-400 mt-1">Publique novidades, cupons e conteudos para seus assinantes.</p>
+          </div>
+        )}
+      </div>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+          <div className="brutalist-card bg-white w-full max-w-2xl p-6 md:p-8 my-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-['Outfit'] font-black text-xl uppercase">Editar Post</h2>
+              <button onClick={() => setEditing(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
+            </div>
+            <PostForm data={editForm} setData={setEditForm} onSave={handleEdit} onCancel={() => setEditing(null)} btnLabel="Salvar Alteracoes" />
           </div>
         </div>
       )}

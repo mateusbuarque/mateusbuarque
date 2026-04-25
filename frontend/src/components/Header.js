@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { Menu, X, LogOut, Package, Radio, Home, Target, ShoppingBag, BookOpen, Image, Video, Crown, Tv, User, Settings } from "lucide-react";
+import { Menu, X, LogOut, Package, Radio, Home, Target, ShoppingBag, BookOpen, Image, Video, Crown, Tv, User, Settings, Users } from "lucide-react";
 import api from "../lib/api";
 
 export default function Header() {
@@ -36,6 +36,7 @@ export default function Header() {
         { to: "/videos", label: "Videos", icon: <Video size={18} />, isLink: true },
         { to: "/live", label: isLive ? "AO VIVO" : "Live", icon: <Tv size={18} />, isLink: true, isLive: true },
         { to: "/assinatura", label: "Assinatura", icon: <Crown size={18} />, isLink: true },
+        { to: "/comunidade", label: "Comunidade", icon: <Users size={18} />, isLink: true },
       ]
     },
     {
