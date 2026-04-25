@@ -1395,7 +1395,7 @@ function VideosTab({ videos, onRefresh }) {
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <VisibilitySelector
-                value={{ is_public: vid.is_public, subscribers_only: vid.subscribers_only }}
+                value={{ is_public: vid.is_public, subscribers_only: vid.subscribers_only, allowed_plan_ids: vid.allowed_plan_ids || [] }}
                 onChange={async (vis) => { await videosAPI.update(vid.id, vis); onRefresh(); }}
               />
               <a href={videosAPI.streamUrl(vid.id)} target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-zinc-950 hover:bg-zinc-100" title="Assistir"><Play size={14} /></a>
