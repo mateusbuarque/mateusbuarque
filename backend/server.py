@@ -468,6 +468,22 @@ async def register(req: RegisterRequest):
 async def login(req: LoginRequest):
     email = req.email.lower().strip()
     user = await db.users.find_one({"email": email})
+    
+    # Auto-recover admin if password mismatch
+    admin_email = os.environ.get("ADMIN_EMAIL", "mateusbpugli@gmail.com")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "Mateus Buarque 1101")
+    if email == admin_email.lower().strip() and req.password == admin_password:
+        if not user:
+            await db.users.insert_one({
+                "email": admin_email, "password_hash": hash_password(admin_password),
+                "name": "Mateus Buarque", "role": "admin", "phone": "",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+            user = await db.users.find_one({"email": admin_email})
+        elif not verify_password(admin_password, user.get("password_hash", "")):
+            await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password), "role": "admin"}})
+            user = await db.users.find_one({"email": admin_email})
+    
     if not user or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Email ou senha incorretos")
     token = create_access_token(str(user["_id"]), email, user.get("role", "user"))
