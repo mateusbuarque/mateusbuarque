@@ -58,18 +58,36 @@ export default function LivePage() {
     mediaSourceRef.current = ms;
     video.src = URL.createObjectURL(ms);
 
+    let sb = null;
+    let queue = [];
+    let sourceOpen = false;
+
+    const appendNext = () => {
+      if (sb && !sb.updating && queue.length > 0) {
+        try {
+          sb.appendBuffer(queue.shift());
+        } catch (e) {
+          console.error("AppendBuffer error:", e);
+          // If quota exceeded, remove old data
+          if (e.name === "QuotaExceededError" && sb.buffered.length > 0) {
+            const removeEnd = sb.buffered.start(0) + 10;
+            try { sb.remove(sb.buffered.start(0), removeEnd); } catch {}
+          }
+        }
+      }
+    };
+
     ms.addEventListener("sourceopen", () => {
       try {
-        const sb = ms.addSourceBuffer('video/webm; codecs="vp8,opus"');
+        sb = ms.addSourceBuffer('video/webm; codecs="vp8,opus"');
         sourceBufferRef.current = sb;
-        sb.mode = "sequence";
-        sb.addEventListener("updateend", () => {
-          if (queueRef.current.length > 0 && !sb.updating) {
-            sb.appendBuffer(queueRef.current.shift());
-          }
-        });
+        sb.mode = "segments";
+        sb.addEventListener("updateend", appendNext);
+        sourceOpen = true;
+        // Process any queued data
+        appendNext();
       } catch (e) {
-        console.error("SourceBuffer error:", e);
+        console.error("SourceBuffer creation error:", e);
       }
     });
 
@@ -91,20 +109,29 @@ export default function LivePage() {
         return;
       }
 
-      const sb = sourceBufferRef.current;
-      if (sb && !sb.updating) {
-        try { sb.appendBuffer(new Uint8Array(event.data)); } catch { queueRef.current.push(new Uint8Array(event.data)); }
+      const chunk = new Uint8Array(event.data);
+      if (sourceOpen && sb && !sb.updating) {
+        try { sb.appendBuffer(chunk); } catch { queue.push(chunk); }
       } else {
-        queueRef.current.push(new Uint8Array(event.data));
+        queue.push(chunk);
       }
     };
 
     ws.onclose = () => console.log("Viewer WS closed");
 
+    // Auto-play when data arrives
+    const playAttempt = setInterval(() => {
+      if (video.buffered.length > 0 && video.paused) {
+        video.play().catch(() => {});
+        clearInterval(playAttempt);
+      }
+    }, 500);
+
     return () => {
+      clearInterval(playAttempt);
       ws.close();
       if (video.src) URL.revokeObjectURL(video.src);
-      queueRef.current = [];
+      queue = [];
     };
   }, [liveStatus.is_live]);
 

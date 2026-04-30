@@ -1498,6 +1498,8 @@ live_state = {
 }
 live_viewers: list = []
 live_chat: list = []
+live_init_segment: bytes = b""
+live_recent_chunks: list = []
 
 @api_router.get("/live/status")
 async def get_live_status():
@@ -1512,6 +1514,7 @@ async def get_live_status():
 
 @api_router.post("/live/start")
 async def start_live(request: Request, user=Depends(require_admin)):
+    global live_init_segment, live_recent_chunks
     body = await request.json()
     live_state["is_live"] = True
     live_state["title"] = body.get("title", "Live")
@@ -1519,6 +1522,8 @@ async def start_live(request: Request, user=Depends(require_admin)):
     live_state["subscribers_only"] = body.get("subscribers_only", False)
     live_state["allowed_plan_ids"] = body.get("allowed_plan_ids", [])
     live_chat.clear()
+    live_init_segment = b""
+    live_recent_chunks = []
     return {"message": "Live iniciada", "status": live_state}
 
 @api_router.post("/live/visibility")
@@ -1678,12 +1683,26 @@ async def get_chat():
 # WebSocket for admin streaming
 @app.websocket("/api/ws/live/stream")
 async def ws_admin_stream(websocket: WebSocket):
+    global live_init_segment, live_recent_chunks
     await websocket.accept()
     live_state["admin_ws"] = websocket
     logger.info("Admin stream connected")
+    chunk_count = 0
     try:
         while True:
             data = await websocket.receive_bytes()
+            chunk_count += 1
+            
+            # First chunk is the WebM init segment (header with codec info)
+            if chunk_count == 1:
+                live_init_segment = data
+                live_recent_chunks = []
+            else:
+                # Keep last few chunks for late-joining viewers
+                live_recent_chunks.append(data)
+                if len(live_recent_chunks) > 5:
+                    live_recent_chunks.pop(0)
+            
             # Relay to all viewers
             disconnected = []
             for i, viewer in enumerate(live_viewers):
@@ -1701,6 +1720,17 @@ async def ws_admin_stream(websocket: WebSocket):
 @app.websocket("/api/ws/live/watch")
 async def ws_viewer(websocket: WebSocket):
     await websocket.accept()
+    
+    # Send init segment so video can start playing immediately
+    if live_init_segment:
+        try:
+            await websocket.send_bytes(live_init_segment)
+            # Send recent chunks to catch up
+            for chunk in live_recent_chunks:
+                await websocket.send_bytes(chunk)
+        except Exception:
+            return
+    
     live_viewers.append(websocket)
     logger.info(f"Viewer connected. Total: {len(live_viewers)}")
     try:

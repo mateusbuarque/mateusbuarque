@@ -70,14 +70,18 @@ export default function AdminLivePanel() {
       const ws = new WebSocket(`${WS_URL}/api/ws/live/stream`);
       wsRef.current = ws;
       ws.onopen = () => {
-        const rec = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp8,opus", videoBitsPerSecond: 1500000 });
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus") 
+          ? "video/webm;codecs=vp8,opus" 
+          : "video/webm";
+        const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 1500000 });
         recorderRef.current = rec;
         rec.ondataavailable = (e) => {
           if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
             e.data.arrayBuffer().then(buf => ws.send(buf));
           }
         };
-        rec.start(500);
+        // 250ms timeslice for lower latency
+        rec.start(250);
       };
 
       // Local recorder for saving
