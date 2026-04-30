@@ -138,6 +138,10 @@ export const communityAPI = {
   createPost: (data) => api.post("/admin/community/posts", data),
   updatePost: (id, data) => api.put(`/admin/community/posts/${id}`, data),
   deletePost: (id) => api.delete(`/admin/community/posts/${id}`),
+  getComments: (postId) => api.get(`/community/posts/${postId}/comments`),
+  addComment: (postId, content) => api.post(`/community/posts/${postId}/comments`, { content }),
+  deleteComment: (commentId) => api.delete(`/admin/community/comments/${commentId}`),
+  getAllComments: () => api.get("/admin/community/comments"),
 };
 
 export const userAPI = {

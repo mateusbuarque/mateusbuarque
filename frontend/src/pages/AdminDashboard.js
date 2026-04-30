@@ -278,7 +278,7 @@ export default function AdminDashboard() {
 
         {/* Subscriptions Tab */}
         {tab === "subscriptions" && <SubscriptionsTab plans={subPlans} allSubs={allSubs} onRefresh={loadData} />}
-        {tab === "coupons" && <CouponsTab coupons={coupons} onRefresh={loadData} />}
+        {tab === "coupons" && <CouponsTab coupons={coupons} plans={subPlans} onRefresh={loadData} />}
         {tab === "community" && <CommunityTab posts={communityPosts} plans={subPlans} onRefresh={loadData} />}
 
         {/* Products Tab */}
@@ -1419,6 +1419,50 @@ function VideosTab({ videos, onRefresh }) {
   );
 }
 
+function AccessToggles({ data, setData, prefix, features, newVal, setNewVal, onAdd, onRemove }) {
+  return (
+    <div className="border-2 border-zinc-200 p-4">
+      <p className="font-bold text-xs uppercase tracking-wider text-zinc-700 mb-3">O que este plano oferece</p>
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { key: "access_lives", label: "Lives exclusivas" },
+          { key: "access_videos", label: "Videos para assinantes" },
+          { key: "access_recordings", label: "Gravacoes de lives" },
+          { key: "access_chat", label: "Chat ao vivo" },
+        ].map(({ key, label }) => (
+          <label key={key} className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={data[key] !== false} onChange={(e) => setData({ ...data, [key]: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" data-testid={`${prefix}-${key}`} />
+            <span className="text-sm font-bold text-zinc-700">{label}</span>
+          </label>
+        ))}
+      </div>
+      {(features || []).length > 0 && (
+        <div className="mt-3 pt-3 border-t border-zinc-200 space-y-2">
+          {features.map((f, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="w-4 h-4 border-2 border-green-500 bg-green-100 flex items-center justify-center flex-shrink-0"><span className="text-green-600 text-xs font-bold">+</span></span>
+              <span className="text-sm font-bold text-zinc-700 flex-1">{f}</span>
+              <button type="button" onClick={() => onRemove(i)} className="text-red-500 hover:text-red-700" data-testid={`${prefix}-remove-feature-${i}`}><X size={14} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-3 pt-3 border-t border-zinc-200">
+        <p className="text-xs text-zinc-500 mb-2">Adicionar item personalizado:</p>
+        <div className="flex gap-2">
+          <input type="text" value={newVal} onChange={(e) => setNewVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onAdd())} placeholder="Ex: Acesso a conteudo exclusivo" className="brutalist-input text-sm flex-1" data-testid={`${prefix}-feature-input`} />
+          <button type="button" onClick={onAdd} className="px-3 py-2 border-2 border-zinc-950 font-bold text-xs uppercase hover:bg-zinc-100" data-testid={`${prefix}-add-feature`}>+</button>
+        </div>
+      </div>
+      <label className="flex items-center gap-2 cursor-pointer mt-3 pt-3 border-t border-zinc-200">
+        <input type="checkbox" checked={data.highlight || false} onChange={(e) => setData({ ...data, highlight: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" data-testid={`${prefix}-highlight`} />
+        <span className="text-sm font-bold text-amber-700">Destacar plano (recomendado)</span>
+      </label>
+    </div>
+  );
+}
+
+
 function SubscriptionsTab({ plans, allSubs, onRefresh }) {
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1503,51 +1547,6 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
     await subscriptionAPI.updatePlan(plan.id, { is_active: !plan.is_active });
     onRefresh();
   };
-
-  const AccessToggles = ({ data, setData, prefix, features, newVal, setNewVal, onAdd, onRemove }) => (
-    <div className="border-2 border-zinc-200 p-4">
-      <p className="font-bold text-xs uppercase tracking-wider text-zinc-700 mb-3">O que este plano oferece</p>
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { key: "access_lives", label: "Lives exclusivas" },
-          { key: "access_videos", label: "Videos para assinantes" },
-          { key: "access_recordings", label: "Gravacoes de lives" },
-          { key: "access_chat", label: "Chat ao vivo" },
-        ].map(({ key, label }) => (
-          <label key={key} className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={data[key] !== false} onChange={(e) => setData({ ...data, [key]: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" data-testid={`${prefix}-${key}`} />
-            <span className="text-sm font-bold text-zinc-700">{label}</span>
-          </label>
-        ))}
-      </div>
-
-      {/* Custom items */}
-      {(features || []).length > 0 && (
-        <div className="mt-3 pt-3 border-t border-zinc-200 space-y-2">
-          {features.map((f, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="w-4 h-4 border-2 border-green-500 bg-green-100 flex items-center justify-center flex-shrink-0"><span className="text-green-600 text-xs font-bold">+</span></span>
-              <span className="text-sm font-bold text-zinc-700 flex-1">{f}</span>
-              <button type="button" onClick={() => onRemove(i)} className="text-red-500 hover:text-red-700" data-testid={`${prefix}-remove-feature-${i}`}><X size={14} /></button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-3 pt-3 border-t border-zinc-200">
-        <p className="text-xs text-zinc-500 mb-2">Adicionar item personalizado:</p>
-        <div className="flex gap-2">
-          <input type="text" value={newVal} onChange={(e) => setNewVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onAdd())} placeholder="Ex: Acesso a conteudo exclusivo" className="brutalist-input text-sm flex-1" data-testid={`${prefix}-feature-input`} />
-          <button type="button" onClick={onAdd} className="px-3 py-2 border-2 border-zinc-950 font-bold text-xs uppercase hover:bg-zinc-100" data-testid={`${prefix}-add-feature`}>+</button>
-        </div>
-      </div>
-
-      <label className="flex items-center gap-2 cursor-pointer mt-3 pt-3 border-t border-zinc-200">
-        <input type="checkbox" checked={data.highlight || false} onChange={(e) => setData({ ...data, highlight: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" data-testid={`${prefix}-highlight`} />
-        <span className="text-sm font-bold text-amber-700">Destacar plano (recomendado)</span>
-      </label>
-    </div>
-  );
 
   return (
     <div data-testid="subscriptions-tab">
@@ -1687,56 +1686,8 @@ function SubscriptionsTab({ plans, allSubs, onRefresh }) {
 }
 
 
-function CouponsTab({ coupons, onRefresh }) {
-  const [showCreate, setShowCreate] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const emptyForm = { code: "", discount_type: "fixed", discount_value: "", max_uses: "", applies_to: "all", expires_at: "" };
-  const [form, setForm] = useState(emptyForm);
-  const [editForm, setEditForm] = useState(emptyForm);
-
-  const handleCreate = async () => {
-    if (!form.code || !form.discount_value) { alert("Preencha o codigo e valor do desconto"); return; }
-    setSaving(true);
-    try {
-      await couponAPI.create({ ...form, discount_value: parseFloat(form.discount_value), max_uses: form.max_uses ? parseInt(form.max_uses) : null });
-      setForm(emptyForm);
-      setShowCreate(false);
-      onRefresh();
-    } catch (err) { alert(err.response?.data?.detail || "Erro ao criar cupom"); }
-    finally { setSaving(false); }
-  };
-
-  const startEdit = (c) => {
-    setEditing(c);
-    setEditForm({ code: c.code, discount_type: c.discount_type, discount_value: String(c.discount_value), max_uses: c.max_uses ? String(c.max_uses) : "", applies_to: c.applies_to || "all", expires_at: c.expires_at ? c.expires_at.split("T")[0] : "" });
-  };
-
-  const handleEdit = async () => {
-    if (!editForm.code || !editForm.discount_value) { alert("Preencha o codigo e valor"); return; }
-    setSaving(true);
-    try {
-      await couponAPI.update(editing.id, { ...editForm, discount_value: parseFloat(editForm.discount_value), max_uses: editForm.max_uses ? parseInt(editForm.max_uses) : null });
-      setEditing(null);
-      onRefresh();
-    } catch (err) { alert(err.response?.data?.detail || "Erro"); }
-    finally { setSaving(false); }
-  };
-
-  const toggleActive = async (c) => {
-    await couponAPI.update(c.id, { is_active: !c.is_active });
-    onRefresh();
-  };
-
-  const deleteCoupon = async (id) => {
-    if (!window.confirm("Excluir cupom?")) return;
-    await couponAPI.delete(id);
-    onRefresh();
-  };
-
-  const appliesLabel = { all: "Tudo", campaigns: "Campanhas", products: "Produtos", subscriptions: "Assinaturas" };
-
-  const CouponForm = ({ data, setData, onSave, onCancel, btnLabel }) => (
+function CouponForm({ data, setData, onSave, onCancel, btnLabel, saving, plans }) {
+  return (
     <div className="space-y-4 max-w-lg">
       <div>
         <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Codigo do Cupom</label>
@@ -1771,6 +1722,32 @@ function CouponsTab({ coupons, onRefresh }) {
         </div>
       </div>
       <div>
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Vincular a plano(s) de assinatura</label>
+        <div className="border-2 border-zinc-200 p-3 space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="radio" checked={!data.linked_plans || data.linked_plans.length === 0} onChange={() => setData({ ...data, linked_plans: [] })} className="w-4 h-4" />
+            <span className="text-sm font-bold text-zinc-700">Todos (qualquer pessoa pode usar)</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="radio" checked={data.linked_plans && data.linked_plans.length > 0} onChange={() => setData({ ...data, linked_plans: plans.length > 0 ? [plans[0].id] : [] })} className="w-4 h-4" />
+            <span className="text-sm font-bold text-zinc-700">Somente assinantes de plano(s) especifico(s)</span>
+          </label>
+          {data.linked_plans && data.linked_plans.length > 0 && (
+            <div className="pl-6 space-y-1 pt-1">
+              {(plans || []).map(plan => (
+                <label key={plan.id} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={data.linked_plans.includes(plan.id)} onChange={(e) => {
+                    const newP = e.target.checked ? [...data.linked_plans, plan.id] : data.linked_plans.filter(id => id !== plan.id);
+                    setData({ ...data, linked_plans: newP.length > 0 ? newP : [plans[0]?.id].filter(Boolean) });
+                  }} className="w-4 h-4 border-2 border-zinc-950" />
+                  <span className="text-sm text-zinc-700">{plan.name} - R$ {parseFloat(plan.price).toFixed(2)}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div>
         <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Data de expiracao (opcional)</label>
         <input type="date" value={data.expires_at} onChange={(e) => setData({ ...data, expires_at: e.target.value })} className="brutalist-input text-sm" data-testid="coupon-expires" />
       </div>
@@ -1780,6 +1757,57 @@ function CouponsTab({ coupons, onRefresh }) {
       </div>
     </div>
   );
+}
+
+
+function CouponsTab({ coupons, plans, onRefresh }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const emptyForm = { code: "", discount_type: "fixed", discount_value: "", max_uses: "", applies_to: "all", expires_at: "", linked_plans: [] };
+  const [form, setForm] = useState(emptyForm);
+  const [editForm, setEditForm] = useState(emptyForm);
+
+  const handleCreate = async () => {
+    if (!form.code || !form.discount_value) { alert("Preencha o codigo e valor do desconto"); return; }
+    setSaving(true);
+    try {
+      await couponAPI.create({ ...form, discount_value: parseFloat(form.discount_value), max_uses: form.max_uses ? parseInt(form.max_uses) : null });
+      setForm(emptyForm);
+      setShowCreate(false);
+      onRefresh();
+    } catch (err) { alert(err.response?.data?.detail || "Erro ao criar cupom"); }
+    finally { setSaving(false); }
+  };
+
+  const startEdit = (c) => {
+    setEditing(c);
+    setEditForm({ code: c.code, discount_type: c.discount_type, discount_value: String(c.discount_value), max_uses: c.max_uses ? String(c.max_uses) : "", applies_to: c.applies_to || "all", expires_at: c.expires_at ? c.expires_at.split("T")[0] : "", linked_plans: c.linked_plans || [] });
+  };
+
+  const handleEdit = async () => {
+    if (!editForm.code || !editForm.discount_value) { alert("Preencha o codigo e valor"); return; }
+    setSaving(true);
+    try {
+      await couponAPI.update(editing.id, { ...editForm, discount_value: parseFloat(editForm.discount_value), max_uses: editForm.max_uses ? parseInt(editForm.max_uses) : null });
+      setEditing(null);
+      onRefresh();
+    } catch (err) { alert(err.response?.data?.detail || "Erro"); }
+    finally { setSaving(false); }
+  };
+
+  const toggleActive = async (c) => {
+    await couponAPI.update(c.id, { is_active: !c.is_active });
+    onRefresh();
+  };
+
+  const deleteCoupon = async (id) => {
+    if (!window.confirm("Excluir cupom?")) return;
+    await couponAPI.delete(id);
+    onRefresh();
+  };
+
+  const appliesLabel = { all: "Tudo", campaigns: "Campanhas", products: "Produtos", subscriptions: "Assinaturas" };
 
   return (
     <div data-testid="coupons-tab">
@@ -1793,7 +1821,7 @@ function CouponsTab({ coupons, onRefresh }) {
       {showCreate && (
         <div className="brutalist-card p-6 mb-6">
           <h4 className="font-bold text-sm uppercase mb-4">Criar Novo Cupom</h4>
-          <CouponForm data={form} setData={setForm} onSave={handleCreate} onCancel={() => { setShowCreate(false); setForm(emptyForm); }} btnLabel="Criar Cupom" />
+          <CouponForm data={form} setData={setForm} onSave={handleCreate} onCancel={() => { setShowCreate(false); setForm(emptyForm); }} btnLabel="Criar Cupom" saving={saving} plans={plans} />
         </div>
       )}
 
@@ -1837,10 +1865,90 @@ function CouponsTab({ coupons, onRefresh }) {
               <h2 className="font-['Outfit'] font-black text-xl uppercase">Editar Cupom</h2>
               <button onClick={() => setEditing(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
             </div>
-            <CouponForm data={editForm} setData={setEditForm} onSave={handleEdit} onCancel={() => setEditing(null)} btnLabel="Salvar Alteracoes" />
+            <CouponForm data={editForm} setData={setEditForm} onSave={handleEdit} onCancel={() => setEditing(null)} btnLabel="Salvar Alteracoes" saving={saving} plans={plans} />
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+function CommunityPostForm({ data, setData, onSave, onCancel, btnLabel, saving, plans }) {
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div>
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Titulo</label>
+        <input type="text" value={data.title} onChange={(e) => setData({ ...data, title: e.target.value })} className="brutalist-input text-sm" data-testid="community-title-input" />
+      </div>
+      <div>
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Conteudo / Mensagem</label>
+        <textarea value={data.content} onChange={(e) => setData({ ...data, content: e.target.value })} className="brutalist-input text-sm min-h-[120px]" placeholder="Escreva sua mensagem para a comunidade..." data-testid="community-content-input" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Tipo de Post</label>
+          <select value={data.post_type} onChange={(e) => setData({ ...data, post_type: e.target.value })} className="brutalist-input text-sm">
+            <option value="text">Novidade / Texto</option>
+            <option value="coupon">Cupom</option>
+            <option value="video">Video</option>
+            <option value="link">Link</option>
+          </select>
+        </div>
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">URL de Midia (opcional)</label>
+          <input type="text" value={data.media_url} onChange={(e) => setData({ ...data, media_url: e.target.value })} className="brutalist-input text-sm" placeholder="https://..." />
+        </div>
+      </div>
+      {data.post_type === "coupon" && (
+        <div>
+          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Codigo do Cupom</label>
+          <input type="text" value={data.coupon_code} onChange={(e) => setData({ ...data, coupon_code: e.target.value.toUpperCase() })} className="brutalist-input text-sm font-mono" placeholder="DESCONTO20" />
+        </div>
+      )}
+      <div>
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Links</label>
+        {(data.links || []).map((link, i) => (
+          <div key={i} className="flex gap-2 mb-2">
+            <input type="text" value={link.label} onChange={(e) => { const l = [...data.links]; l[i] = { ...l[i], label: e.target.value }; setData({ ...data, links: l }); }} className="brutalist-input text-sm flex-1" placeholder="Nome do link" />
+            <input type="text" value={link.url} onChange={(e) => { const l = [...data.links]; l[i] = { ...l[i], url: e.target.value }; setData({ ...data, links: l }); }} className="brutalist-input text-sm flex-1" placeholder="https://..." />
+            <button onClick={() => setData({ ...data, links: data.links.filter((_, j) => j !== i) })} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
+          </div>
+        ))}
+        <button onClick={() => setData({ ...data, links: [...(data.links || []), { label: "", url: "" }] })} className="flex items-center gap-1 text-xs font-bold uppercase text-zinc-500 hover:text-zinc-950"><Plus size={14} /> Adicionar link</button>
+      </div>
+      <div className="border-2 border-zinc-200 p-4">
+        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-3">Enviar para quais planos?</label>
+        <label className="flex items-center gap-2 cursor-pointer mb-2">
+          <input type="radio" checked={data.target_plans.length === 0} onChange={() => setData({ ...data, target_plans: [] })} className="w-4 h-4" />
+          <span className="text-sm font-bold text-zinc-700">Todos os planos</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer mb-3">
+          <input type="radio" checked={data.target_plans.length > 0} onChange={() => setData({ ...data, target_plans: (plans || []).length > 0 ? [plans[0].id] : [] })} className="w-4 h-4" />
+          <span className="text-sm font-bold text-zinc-700">Planos especificos</span>
+        </label>
+        {data.target_plans.length > 0 && (
+          <div className="pl-6 space-y-2">
+            {(plans || []).map(plan => (
+              <label key={plan.id} className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={data.target_plans.includes(plan.id)} onChange={(e) => {
+                  const newPlans = e.target.checked ? [...data.target_plans, plan.id] : data.target_plans.filter(id => id !== plan.id);
+                  setData({ ...data, target_plans: newPlans.length > 0 ? newPlans : [plans[0]?.id].filter(Boolean) });
+                }} className="w-4 h-4 border-2 border-zinc-950" />
+                <span className="text-sm text-zinc-700">{plan.name} - R$ {parseFloat(plan.price).toFixed(2)}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" checked={data.pinned} onChange={(e) => setData({ ...data, pinned: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" />
+        <span className="text-sm font-bold text-amber-700">Fixar no topo</span>
+      </label>
+      <div className="flex gap-2 pt-2">
+        <button onClick={onSave} disabled={saving} className="brutalist-btn text-sm" data-testid="community-save-btn">{saving ? "Salvando..." : btnLabel}</button>
+        <button onClick={onCancel} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
+      </div>
     </div>
   );
 }
@@ -1892,83 +2000,6 @@ function CommunityTab({ posts, plans, onRefresh }) {
     onRefresh();
   };
 
-  const PostForm = ({ data, setData, onSave, onCancel, btnLabel }) => (
-    <div className="space-y-4 max-w-2xl">
-      <div>
-        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Titulo</label>
-        <input type="text" value={data.title} onChange={(e) => setData({ ...data, title: e.target.value })} className="brutalist-input text-sm" data-testid="community-title-input" />
-      </div>
-      <div>
-        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Conteudo / Mensagem</label>
-        <textarea value={data.content} onChange={(e) => setData({ ...data, content: e.target.value })} className="brutalist-input text-sm min-h-[120px]" placeholder="Escreva sua mensagem para a comunidade..." data-testid="community-content-input" />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Tipo de Post</label>
-          <select value={data.post_type} onChange={(e) => setData({ ...data, post_type: e.target.value })} className="brutalist-input text-sm">
-            <option value="text">Novidade / Texto</option>
-            <option value="coupon">Cupom</option>
-            <option value="video">Video</option>
-            <option value="link">Link</option>
-          </select>
-        </div>
-        <div>
-          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">URL de Midia (opcional)</label>
-          <input type="text" value={data.media_url} onChange={(e) => setData({ ...data, media_url: e.target.value })} className="brutalist-input text-sm" placeholder="https://..." />
-        </div>
-      </div>
-      {data.post_type === "coupon" && (
-        <div>
-          <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Codigo do Cupom</label>
-          <input type="text" value={data.coupon_code} onChange={(e) => setData({ ...data, coupon_code: e.target.value.toUpperCase() })} className="brutalist-input text-sm font-mono" placeholder="DESCONTO20" />
-        </div>
-      )}
-      <div>
-        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-2">Links</label>
-        {(data.links || []).map((link, i) => (
-          <div key={i} className="flex gap-2 mb-2">
-            <input type="text" value={link.label} onChange={(e) => { const l = [...data.links]; l[i] = { ...l[i], label: e.target.value }; setData({ ...data, links: l }); }} className="brutalist-input text-sm flex-1" placeholder="Nome do link" />
-            <input type="text" value={link.url} onChange={(e) => { const l = [...data.links]; l[i] = { ...l[i], url: e.target.value }; setData({ ...data, links: l }); }} className="brutalist-input text-sm flex-1" placeholder="https://..." />
-            <button onClick={() => setData({ ...data, links: data.links.filter((_, j) => j !== i) })} className="p-2 border-2 border-red-500 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
-          </div>
-        ))}
-        <button onClick={() => setData({ ...data, links: [...(data.links || []), { label: "", url: "" }] })} className="flex items-center gap-1 text-xs font-bold uppercase text-zinc-500 hover:text-zinc-950"><Plus size={14} /> Adicionar link</button>
-      </div>
-      <div className="border-2 border-zinc-200 p-4">
-        <label className="font-bold text-xs uppercase tracking-wider text-zinc-700 block mb-3">Enviar para quais planos?</label>
-        <label className="flex items-center gap-2 cursor-pointer mb-2">
-          <input type="radio" checked={data.target_plans.length === 0} onChange={() => setData({ ...data, target_plans: [] })} className="w-4 h-4" />
-          <span className="text-sm font-bold text-zinc-700">Todos os planos</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer mb-3">
-          <input type="radio" checked={data.target_plans.length > 0} onChange={() => setData({ ...data, target_plans: plans.length > 0 ? [plans[0].id] : [] })} className="w-4 h-4" />
-          <span className="text-sm font-bold text-zinc-700">Planos especificos</span>
-        </label>
-        {data.target_plans.length > 0 && (
-          <div className="pl-6 space-y-2">
-            {plans.map(plan => (
-              <label key={plan.id} className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={data.target_plans.includes(plan.id)} onChange={(e) => {
-                  const newPlans = e.target.checked ? [...data.target_plans, plan.id] : data.target_plans.filter(id => id !== plan.id);
-                  setData({ ...data, target_plans: newPlans.length > 0 ? newPlans : [plans[0]?.id].filter(Boolean) });
-                }} className="w-4 h-4 border-2 border-zinc-950" />
-                <span className="text-sm text-zinc-700">{plan.name} - R$ {parseFloat(plan.price).toFixed(2)}</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={data.pinned} onChange={(e) => setData({ ...data, pinned: e.target.checked })} className="w-4 h-4 border-2 border-zinc-950" />
-        <span className="text-sm font-bold text-amber-700">Fixar no topo</span>
-      </label>
-      <div className="flex gap-2 pt-2">
-        <button onClick={onSave} disabled={saving} className="brutalist-btn text-sm" data-testid="community-save-btn">{saving ? "Salvando..." : btnLabel}</button>
-        <button onClick={onCancel} className="px-4 py-2 border-2 border-zinc-300 text-zinc-500 font-bold text-xs uppercase hover:bg-zinc-50">Cancelar</button>
-      </div>
-    </div>
-  );
-
   const typeLabel = { text: "Novidade", coupon: "Cupom", video: "Video", link: "Link" };
   const getPlanName = (id) => plans.find(p => p.id === id)?.name || id;
 
@@ -1984,7 +2015,7 @@ function CommunityTab({ posts, plans, onRefresh }) {
       {showCreate && (
         <div className="brutalist-card p-6 mb-6">
           <h4 className="font-bold text-sm uppercase mb-4">Novo Post na Comunidade</h4>
-          <PostForm data={form} setData={setForm} onSave={handleCreate} onCancel={() => { setShowCreate(false); setForm(emptyForm); }} btnLabel="Publicar" />
+          <CommunityPostForm data={form} setData={setForm} onSave={handleCreate} onCancel={() => { setShowCreate(false); setForm(emptyForm); }} btnLabel="Publicar" saving={saving} plans={plans} />
         </div>
       )}
 
@@ -2031,7 +2062,7 @@ function CommunityTab({ posts, plans, onRefresh }) {
               <h2 className="font-['Outfit'] font-black text-xl uppercase">Editar Post</h2>
               <button onClick={() => setEditing(null)} className="p-2 hover:bg-zinc-100"><span className="text-xl">&times;</span></button>
             </div>
-            <PostForm data={editForm} setData={setEditForm} onSave={handleEdit} onCancel={() => setEditing(null)} btnLabel="Salvar Alteracoes" />
+            <CommunityPostForm data={editForm} setData={setEditForm} onSave={handleEdit} onCancel={() => setEditing(null)} btnLabel="Salvar Alteracoes" saving={saving} plans={plans} />
           </div>
         </div>
       )}

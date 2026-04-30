@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { communityAPI, subscriptionAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { Users, Lock, Tag, Link2, Pin, Video, FileText, ExternalLink } from "lucide-react";
+import { Users, Lock, Tag, Link2, Pin, Video, FileText, ExternalLink, MessageCircle, Send, Trash2 } from "lucide-react";
 
 export default function CommunityPage() {
   const { user } = useAuth();
@@ -88,7 +88,44 @@ export default function CommunityPage() {
     }
   };
 
-  const PostCard = ({ post }) => (
+  const PostCard = ({ post }) => {
+    const [comments, setComments] = useState([]);
+    const [showComments, setShowComments] = useState(false);
+    const [newComment, setNewComment] = useState("");
+    const [sending, setSending] = useState(false);
+
+    const loadComments = async () => {
+      try {
+        const res = await communityAPI.getComments(post.id);
+        setComments(res.data);
+      } catch(e) {}
+    };
+
+    const handleComment = async () => {
+      if (!newComment.trim()) return;
+      setSending(true);
+      try {
+        await communityAPI.addComment(post.id, newComment.trim());
+        setNewComment("");
+        loadComments();
+      } catch(e) { alert(e.response?.data?.detail || "Erro"); }
+      finally { setSending(false); }
+    };
+
+    const handleDelete = async (commentId) => {
+      if (!window.confirm("Excluir comentario?")) return;
+      await communityAPI.deleteComment(commentId);
+      loadComments();
+    };
+
+    const toggleComments = () => {
+      if (!showComments) loadComments();
+      setShowComments(!showComments);
+    };
+
+    const isAdmin = user?.role === "admin";
+
+    return (
     <div className={`brutalist-card p-6 ${post.pinned ? "border-l-4 border-l-amber-400" : ""}`} data-testid={`community-post-${post.id}`}>
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 flex items-center justify-center flex-shrink-0 border-2 border-zinc-950" style={{ backgroundColor: settings.primary_color || "#FFDE00" }}>
@@ -133,13 +170,47 @@ export default function CommunityPage() {
             </div>
           )}
 
-          <p className="text-xs text-zinc-400 mt-3">
-            {post.author_name} - {new Date(post.created_at).toLocaleDateString("pt-BR")} {new Date(post.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-          </p>
+          <div className="mt-4 flex items-center gap-4">
+            <p className="text-xs text-zinc-400">
+              {post.author_name} - {new Date(post.created_at).toLocaleDateString("pt-BR")}
+            </p>
+            <button onClick={toggleComments} className="flex items-center gap-1 text-xs font-bold text-zinc-500 hover:text-zinc-900 uppercase" data-testid={`toggle-comments-${post.id}`}>
+              <MessageCircle size={14} /> {showComments ? "Ocultar" : "Comentarios"}
+            </button>
+          </div>
+
+          {showComments && (
+            <div className="mt-4 pt-4 border-t border-zinc-200">
+              <div className="space-y-3 mb-4">
+                {comments.map(c => (
+                  <div key={c.id} className="flex gap-2" data-testid={`comment-${c.id}`}>
+                    <div className={`w-8 h-8 flex items-center justify-center flex-shrink-0 text-xs font-bold border ${c.is_admin ? "bg-amber-100 border-amber-400 text-amber-800" : "bg-zinc-100 border-zinc-300 text-zinc-600"}`}>
+                      {(c.user_name || "?")[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-zinc-800">{c.user_name}</span>
+                        {c.is_admin && <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 font-bold border border-amber-300">Admin</span>}
+                        <span className="text-xs text-zinc-400">{new Date(c.created_at).toLocaleDateString("pt-BR")}</span>
+                        {isAdmin && <button onClick={() => handleDelete(c.id)} className="text-red-400 hover:text-red-600 ml-auto" data-testid={`delete-comment-${c.id}`}><Trash2 size={12} /></button>}
+                      </div>
+                      <p className="text-sm text-zinc-700 mt-0.5">{c.content}</p>
+                    </div>
+                  </div>
+                ))}
+                {comments.length === 0 && <p className="text-xs text-zinc-400">Nenhum comentario ainda. Seja o primeiro!</p>}
+              </div>
+              <div className="flex gap-2">
+                <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleComment()} placeholder="Escreva um comentario..." className="brutalist-input text-sm flex-1" data-testid={`comment-input-${post.id}`} />
+                <button onClick={handleComment} disabled={sending || !newComment.trim()} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100 disabled:opacity-50" data-testid={`send-comment-${post.id}`}><Send size={16} /></button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="py-16 md:py-24" data-testid="community-page">

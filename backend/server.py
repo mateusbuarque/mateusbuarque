@@ -1255,6 +1255,7 @@ async def create_coupon(request: Request, user=Depends(require_admin)):
         "max_uses": int(body.get("max_uses", 0)) if body.get("max_uses") else None,
         "uses": 0,
         "applies_to": body.get("applies_to", "all"),
+        "linked_plans": body.get("linked_plans", []),
         "is_active": True,
         "expires_at": body.get("expires_at") or None,
         "created_at": datetime.now(timezone.utc).isoformat()
@@ -1266,7 +1267,7 @@ async def create_coupon(request: Request, user=Depends(require_admin)):
 @api_router.put("/admin/coupons/{coupon_id}")
 async def update_coupon(coupon_id: str, request: Request, user=Depends(require_admin)):
     body = await request.json()
-    allowed = ("code", "discount_type", "discount_value", "max_uses", "applies_to", "is_active", "expires_at")
+    allowed = ("code", "discount_type", "discount_value", "max_uses", "applies_to", "is_active", "expires_at", "linked_plans")
     update = {k: v for k, v in body.items() if k in allowed}
     if "code" in update: update["code"] = update["code"].strip().upper()
     if "discount_value" in update: update["discount_value"] = float(update["discount_value"])
@@ -1437,10 +1438,56 @@ async def update_community_post(post_id: str, request: Request, user=Depends(req
 @api_router.delete("/admin/community/posts/{post_id}")
 async def delete_community_post(post_id: str, user=Depends(require_admin)):
     await db.community_posts.delete_one({"id": post_id})
+    await db.community_comments.delete_many({"post_id": post_id})
     return {"message": "Post excluido"}
 
+# ─── Community Comments ───
+@api_router.get("/community/posts/{post_id}/comments")
+async def get_post_comments(post_id: str, request: Request):
+    user = await get_optional_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Login necessario")
+    is_admin = user.get("role") == "admin"
+    if not is_admin:
+        sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"})
+        if not sub:
+            raise HTTPException(status_code=403, detail="Exclusivo para assinantes")
+    return await db.community_comments.find({"post_id": post_id}, {"_id": 0}).sort("created_at", 1).to_list(200)
 
-# ─── Live Streaming ───
+@api_router.post("/community/posts/{post_id}/comments")
+async def create_comment(post_id: str, request: Request, user=Depends(get_current_user)):
+    sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"})
+    is_admin = user.get("role") == "admin"
+    if not is_admin and not sub:
+        raise HTTPException(status_code=403, detail="Exclusivo para assinantes")
+    body = await request.json()
+    content = body.get("content", "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Comentario vazio")
+    comment = {
+        "id": str(uuid.uuid4()),
+        "post_id": post_id,
+        "user_id": user["_id"],
+        "user_name": user.get("name", user.get("email", "Anonimo")),
+        "user_email": user.get("email", ""),
+        "content": content[:1000],
+        "is_admin": is_admin,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.community_comments.insert_one(comment)
+    comment.pop("_id", None)
+    return comment
+
+@api_router.delete("/admin/community/comments/{comment_id}")
+async def delete_comment(comment_id: str, user=Depends(require_admin)):
+    await db.community_comments.delete_one({"id": comment_id})
+    return {"message": "Comentario excluido"}
+
+@api_router.get("/admin/community/comments")
+async def get_all_comments(user=Depends(require_admin)):
+    return await db.community_comments.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
 live_state = {
     "is_live": False,
     "title": "",
