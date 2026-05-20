@@ -91,6 +91,7 @@ export const adminAPI = {
   balance: () => api.get("/admin/balance"),
   withdraw: (data) => api.post("/admin/withdraw", data),
   subscriptions: () => api.get("/admin/subscriptions"),
+  users: () => api.get("/admin/users"),
 };
 
 export const subscriptionAPI = {

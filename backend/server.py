@@ -522,6 +522,20 @@ async def update_site_settings(data: SiteSettingsUpdate, user=Depends(require_ad
     )
     return {"message": "Configuracoes atualizadas"}
 
+
+# ─── Admin Users ───
+@api_router.get("/admin/users")
+async def get_all_users(user=Depends(require_admin)):
+    users = await db.users.find({}, {"password_hash": 0}).sort("created_at", -1).to_list(500)
+    for u in users:
+        u["_id"] = str(u["_id"])
+        sub = await db.subscriptions.find_one({"user_id": u["_id"], "status": "active"}, {"_id": 0})
+        u["subscription"] = sub
+        orders = await db.payment_transactions.count_documents({"user_id": u["_id"]})
+        u["order_count"] = orders
+    return users
+
+
 # ─── Campaign Routes ───
 @api_router.get("/campaigns")
 async def get_campaigns():

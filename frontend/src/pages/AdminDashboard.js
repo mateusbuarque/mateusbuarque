@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSiteSettings } from "../contexts/SiteSettingsContext";
 import { campaignAPI, productAPI, adminAPI, galleryAPI, bioAPI, newsletterAPI, siteSettingsAPI, uploadAPI, adminPixAPI, showcaseAPI, videosAPI, subscriptionAPI, liveAPI, couponAPI, communityAPI } from "../lib/api";
-import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play, Crown, Lock, Tag, Percent, Users, Pin, Link2 } from "lucide-react";
+import { Plus, Trash2, Edit2, BarChart3, Image, FileText, Mail, X, ShoppingBag, Settings, Wallet, ArrowDownToLine, Upload, Radio, Sparkles, Video, Eye, EyeOff, Play, Crown, Lock, Tag, Percent, Users, Pin, Link2, User } from "lucide-react";
 import ImageUpload from "../components/ImageUpload";
 import AdminLivePanel from "../components/AdminLivePanel";
 import VisibilitySelector from "../components/VisibilitySelector";
@@ -26,6 +26,7 @@ export default function AdminDashboard() {
   const [allSubs, setAllSubs] = useState([]);
   const [coupons, setCoupons] = useState([]);
   const [communityPosts, setCommunityPosts] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
@@ -43,12 +44,12 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes, vidRes, plansRes, allSubsRes, couponsRes, commRes] = await Promise.all([
+      const [campRes, prodRes, statsRes, galRes, bioRes, subRes, settRes, showRes, vidRes, plansRes, allSubsRes, couponsRes, commRes, usersRes] = await Promise.all([
         campaignAPI.getAll(), productAPI.getAll(), adminAPI.stats(),
         galleryAPI.getAll(), bioAPI.get(), newsletterAPI.getSubscribers(),
         siteSettingsAPI.get(), showcaseAPI.getAll(), videosAPI.getAll(),
         subscriptionAPI.plans(), adminAPI.subscriptions(), couponAPI.getAll(),
-        communityAPI.getPosts(),
+        communityAPI.getPosts(), adminAPI.users(),
       ]);
       setCampaigns(campRes.data);
       setProducts(prodRes.data);
@@ -63,6 +64,7 @@ export default function AdminDashboard() {
       setAllSubs(allSubsRes.data);
       setCoupons(couponsRes.data);
       setCommunityPosts(commRes.data);
+      setAllUsers(usersRes.data);
     } catch (err) { console.error(err); }
   };
 
@@ -100,6 +102,7 @@ export default function AdminDashboard() {
     { id: "subscriptions", label: "Assinaturas", icon: <Crown size={16} /> },
     { id: "coupons", label: "Cupons", icon: <Tag size={16} /> },
     { id: "community", label: "Comunidade", icon: <Users size={16} /> },
+    { id: "users", label: "Usuarios", icon: <User size={16} /> },
     { id: "showcase", label: "Vitrine", icon: <Sparkles size={16} /> },
     { id: "gallery", label: "Galeria", icon: <Image size={16} /> },
     { id: "bio", label: "Biografia", icon: <FileText size={16} /> },
@@ -280,6 +283,7 @@ export default function AdminDashboard() {
         {tab === "subscriptions" && <SubscriptionsTab plans={subPlans} allSubs={allSubs} onRefresh={loadData} />}
         {tab === "coupons" && <CouponsTab coupons={coupons} plans={subPlans} onRefresh={loadData} />}
         {tab === "community" && <CommunityTab posts={communityPosts} plans={subPlans} onRefresh={loadData} />}
+        {tab === "users" && <UsersTab users={allUsers} />}
 
         {/* Products Tab */}
         {tab === "products" && (
@@ -2064,6 +2068,90 @@ function CommunityTab({ posts, plans, onRefresh }) {
             </div>
             <CommunityPostForm data={editForm} setData={setEditForm} onSave={handleEdit} onCancel={() => setEditing(null)} btnLabel="Salvar Alteracoes" saving={saving} plans={plans} />
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function UsersTab({ users }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = users.filter(u => {
+    const q = search.toLowerCase();
+    return !q || u.email?.toLowerCase().includes(q) || u.name?.toLowerCase().includes(q) || u.phone?.includes(q);
+  });
+
+  const nonAdmin = filtered.filter(u => u.role !== "admin");
+  const admins = filtered.filter(u => u.role === "admin");
+
+  return (
+    <div data-testid="users-tab">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="font-['Outfit'] font-bold text-xl uppercase">{users.filter(u => u.role !== "admin").length} Usuarios Cadastrados</h3>
+      </div>
+
+      <div className="mb-6">
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, email ou telefone..." className="brutalist-input text-sm max-w-md" data-testid="users-search" />
+      </div>
+
+      {admins.length > 0 && (
+        <div className="mb-6">
+          <h4 className="font-bold text-xs uppercase tracking-wider text-zinc-500 mb-3">Administradores</h4>
+          {admins.map(u => (
+            <div key={u._id} className="brutalist-card p-4 mb-2 border-l-4 border-l-amber-400">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 border-2 border-amber-400 flex items-center justify-center font-bold text-amber-800 text-sm">{(u.name || u.email)[0].toUpperCase()}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-zinc-950">{u.name || "Sem nome"}</div>
+                  <div className="text-xs text-zinc-500">{u.email}</div>
+                </div>
+                <span className="px-2 py-1 text-xs font-bold uppercase bg-amber-100 text-amber-800 border border-amber-300">Admin</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h4 className="font-bold text-xs uppercase tracking-wider text-zinc-500 mb-3">Usuarios ({nonAdmin.length})</h4>
+      {nonAdmin.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full border-2 border-zinc-950 text-sm">
+            <thead>
+              <tr className="bg-zinc-950 text-white">
+                <th className="p-3 text-left font-bold uppercase text-xs">Nome</th>
+                <th className="p-3 text-left font-bold uppercase text-xs">Email</th>
+                <th className="p-3 text-left font-bold uppercase text-xs">Telefone</th>
+                <th className="p-3 text-left font-bold uppercase text-xs">Assinatura</th>
+                <th className="p-3 text-left font-bold uppercase text-xs">Pedidos</th>
+                <th className="p-3 text-left font-bold uppercase text-xs">Cadastro</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nonAdmin.map((u, i) => (
+                <tr key={u._id} className={i % 2 === 0 ? "bg-white" : "bg-zinc-50"} data-testid={`user-row-${i}`}>
+                  <td className="p-3 font-bold text-zinc-950">{u.name || "-"}</td>
+                  <td className="p-3 text-zinc-600">{u.email}</td>
+                  <td className="p-3 text-zinc-600">{u.phone || "-"}</td>
+                  <td className="p-3">
+                    {u.subscription ? (
+                      <span className="px-2 py-0.5 text-xs font-bold uppercase bg-green-100 text-green-800 border border-green-300">{u.subscription.plan_name}</span>
+                    ) : (
+                      <span className="text-xs text-zinc-400">-</span>
+                    )}
+                  </td>
+                  <td className="p-3 text-zinc-600">{u.order_count || 0}</td>
+                  <td className="p-3 text-xs text-zinc-500">{u.created_at ? new Date(u.created_at).toLocaleDateString("pt-BR") : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="brutalist-card p-8 text-center">
+          <User size={36} className="mx-auto mb-3 text-zinc-300" />
+          <p className="text-zinc-500 font-bold uppercase text-sm">{search ? "Nenhum usuario encontrado" : "Nenhum usuario cadastrado ainda"}</p>
         </div>
       )}
     </div>
