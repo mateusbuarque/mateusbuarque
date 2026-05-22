@@ -365,21 +365,21 @@ class WithdrawRequest(BaseModel):
     pix_key_type: str = "cpf"
 
 DEFAULT_SITE_SETTINGS = {
-    "site_name": "Edegar Agostinho",
-    "site_subtitle": "Comediante, escritor e ilustrador",
-    "logo_url": "",
-    "primary_color": "#FFDE00",
-    "secondary_color": "#09090B",
-    "accent_color": "#FF3B30",
+    "site_name": "Mateus Buarque",
+    "site_subtitle": "Comediante, escritor, ator e criador de conteúdo pra internet",
+    "logo_url": "file:///C:/Users/Mateus/Downloads/MBLab.jpeg",
+    "primary_color": "#FF0000",
+    "secondary_color": "#000000",
+    "accent_color": "#FF0000",
     "bg_color": "#FFFFFF",
-    "text_color": "#09090B",
+    "text_color": "#000000",
     "btn_color": "#FFDE00",
     "btn_text_color": "#09090B",
-    "hero_title": "Apoie a Comedia. Leia um livro.",
-    "hero_subtitle": "Financiamento coletivo dos livros de Edegar Agostinho. Apoie a comedia brasileira e receba seu livro em casa.",
+    "hero_title": "APENAS QUEM NÃO É NUTELLA",
+    "hero_subtitle": "MIMIMI FREE",
     "support_email": "mateusbuarquepugli@gmail.com",
-    "marquee_text": "FINANCIAMENTO COLETIVO * PRODUTO ENTREGUE MESMO SE FATURAR R$0 * APOIE A COMEDIA * EDEGAR AGOSTINHO *",
-    "nav_label_home": "Inicio",
+    "marquee_text": "MATEUS BUARQUE * FINANCIAMENTO COLETIVO * LOJA * ENTRETERIMENTO *",
+    "nav_label_home": "Início",
     "nav_label_campaigns": "Campanhas",
     "nav_label_store": "Loja",
     "nav_label_bio": "Biografia",
@@ -390,7 +390,7 @@ DEFAULT_SITE_SETTINGS = {
     "nav_url_bio": "/#biografia",
     "nav_url_gallery": "/#galeria",
     "btn_label_hero_primary": "Ver Campanhas",
-    "btn_label_hero_secondary": "Sobre Edegar",
+    "btn_label_hero_secondary": "Sobre Mateus",
     "btn_label_support": "Apoiar",
     "btn_label_buy_card": "Pagar com Cartao",
     "btn_label_buy_pix": "Pagar com Pix",
@@ -412,11 +412,8 @@ DEFAULT_SITE_SETTINGS = {
     "section_title_products": "Projetos & Produtos",
     "section_title_bio": "Biografia",
     "section_title_gallery": "Galeria",
-    "social_instagram": "",
-    "social_youtube": "",
-    "social_tiktok": "",
-    "social_twitter": "",
-    "social_facebook": "",
+    "social_instagram": "https://www.instagram.com/mateusbuarque",
+    "social_youtube": "https://www.youtube.com/@mateusbuarque",
     "nav_label_live": "Live",
     "nav_label_videos": "Videos",
     "nav_label_subscription": "Assinatura",
@@ -449,12 +446,12 @@ async def register(req: RegisterRequest):
     email = req.email.lower().strip()
     phone = re.sub(r'[^0-9+]', '', req.phone.strip())
     if len(req.password) < 6:
-        raise HTTPException(status_code=400, detail="Senha deve ter pelo menos 6 caracteres")
+        raise HTTPException(status_code=400, detail="Senha deve ter pelo menos 8 caracteres")
     if not phone or len(phone) < 8:
-        raise HTTPException(status_code=400, detail="Numero de celular invalido")
+        raise HTTPException(status_code=400, detail="Número de celular invalido")
     existing = await db.users.find_one({"email": email})
     if existing:
-        raise HTTPException(status_code=400, detail="Email ja cadastrado")
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
     hashed = hash_password(req.password)
     user_doc = {"email": email, "password_hash": hashed, "name": req.name.strip(), "phone": phone, "role": "user", "created_at": datetime.now(timezone.utc).isoformat()}
     result = await db.users.insert_one(user_doc)
@@ -771,7 +768,7 @@ async def checkout_product(data: CheckoutProductRequest, user=Depends(get_curren
         "pix_key_type": PIX_KEY_TYPE,
         "item_title": product["title"],
         "comprovante_email": PIX_COMPROVANTE_EMAIL,
-        "message": f"Envie R$ {amount:.2f} via Pix para {PIX_KEY}. Apos realizar o pagamento, envie o comprovante para {PIX_COMPROVANTE_EMAIL}."
+        "message": f"Envie R$ {amount:.2f} via Pix para {PIX_KEY}. Após realizar o pagamento, envie o comprovante para {PIX_COMPROVANTE_EMAIL}."
     }
 
 # ─── Pix Manual Payment (legacy route) ───
@@ -1014,7 +1011,7 @@ async def upload_video(file: UploadFile = File(...), user=Depends(require_admin)
         raise HTTPException(status_code=400, detail=f"Formato nao permitido. Use: {', '.join(VIDEO_EXTENSIONS)}")
     data = await file.read()
     if len(data) > MAX_VIDEO_SIZE:
-        raise HTTPException(status_code=400, detail="Arquivo muito grande (max 500MB)")
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (max 5000MB)")
     mime_types = {"mp4": "video/mp4", "webm": "video/webm", "mov": "video/quicktime", "avi": "video/x-msvideo"}
     content_type = mime_types.get(ext, file.content_type or "video/mp4")
     file_id = str(uuid.uuid4())
