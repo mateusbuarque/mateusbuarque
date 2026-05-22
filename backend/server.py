@@ -84,8 +84,8 @@ api_router = APIRouter(prefix="/api")
 
 JWT_ALGORITHM = "HS256"
 PLATFORM_FEE_PERCENT = 5.0
-MAX_CAMPAIGNS = 10
-MAX_PRODUCTS = 10
+MAX_CAMPAIGNS = 100
+MAX_PRODUCTS = 100
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
