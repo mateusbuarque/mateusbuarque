@@ -4,7 +4,7 @@ import { recordingsAPI, subscriptionAPI } from "../lib/api";
 import { Radio, VideoOff, Monitor, Camera, Settings2, Download, Eye, EyeOff, Trash2, Play, Upload, Lock, Unlock } from "lucide-react";
 import VisibilitySelector from "./VisibilitySelector";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
 const WS_URL = BACKEND_URL.replace("https://", "wss://").replace("http://", "ws://");
 
 export default function AdminLivePanel() {
