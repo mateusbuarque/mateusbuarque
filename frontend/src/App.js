@@ -18,6 +18,18 @@ import SubscriptionPage from "./pages/SubscriptionPage";
 import CommunityPage from "./pages/CommunityPage";
 import ScreenProtection from "./components/ScreenProtection";
 
+if (typeof document !== "undefined") {
+  document.title = "Mateus Buarque";
+
+  let favicon = document.querySelector("link[rel='icon']");
+  if (!favicon) {
+    favicon = document.createElement("link");
+    favicon.rel = "icon";
+    document.head.appendChild(favicon);
+  }
+
+  favicon.href = "/favicon.ico?v=10";
+}
 function App() {
   return (
     <AuthProvider>
