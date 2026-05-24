@@ -1,1 +1,15 @@
 /* App-level overrides - all styles in index.css */
+#emergent-badge,
+a#emergent-badge,
+a[href*="emergent.sh"],
+a[href*="app.emergent.sh"],
+div[id*="emergent"],
+[class*="emergent-badge"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
