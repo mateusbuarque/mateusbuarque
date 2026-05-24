@@ -30,6 +30,46 @@ if (typeof document !== "undefined") {
 
   favicon.href = "/favicon.ico?v=10";
 }
+function forceSiteCleanup() {
+  if (typeof document === "undefined") return;
+
+  document.title = "Mateus Buarque";
+
+  const existingIcons = document.querySelectorAll("link[rel*='icon']");
+  existingIcons.forEach((icon) => icon.remove());
+
+  const favicon = document.createElement("link");
+  favicon.rel = "icon";
+  favicon.type = "image/x-icon";
+  favicon.href = "/favicon.ico?v=9999";
+  document.head.appendChild(favicon);
+
+  document.querySelectorAll("script").forEach((script) => {
+    if (script.src && script.src.includes("emergent")) {
+      script.remove();
+    }
+  });
+
+  document.querySelectorAll("a, div, button, span").forEach((el) => {
+    const text = (el.innerText || "").toLowerCase();
+    const href = (el.getAttribute("href") || "").toLowerCase();
+    const id = (el.id || "").toLowerCase();
+    const cls = (el.className || "").toString().toLowerCase();
+
+    if (
+      text.includes("feito com emergent") ||
+      text.includes("made with emergent") ||
+      href.includes("emergent") ||
+      id.includes("emergent") ||
+      cls.includes("emergent")
+    ) {
+      el.remove();
+    }
+  });
+}
+
+forceSiteCleanup();
+setInterval(forceSiteCleanup, 500);
 function App() {
   return (
     <AuthProvider>
