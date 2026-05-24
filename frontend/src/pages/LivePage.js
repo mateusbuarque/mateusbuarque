@@ -6,7 +6,7 @@ import api from "../lib/api";
 import { recordingsAPI } from "../lib/api";
 import { Radio, Users, MessageCircle, Send, Play } from "lucide-react";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
 const WS_URL = BACKEND_URL.replace("https://", "wss://").replace("http://", "ws://");
 
 export default function LivePage() {
