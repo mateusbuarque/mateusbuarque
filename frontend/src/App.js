@@ -15,7 +15,7 @@ import OrderHistory from "./pages/OrderHistory";
 import LivePage from "./pages/LivePage";
 import VideosPage from "./pages/VideosPage";
 import SubscriptionPage from "./pages/SubscriptionPage";
-import CommunityPage from "./pages/CommunityPage";
+import CommunityPage from "./pages/CommunityPage"; 
 
 if (typeof document !== "undefined") {
   document.title = "Mateus Buarque";
