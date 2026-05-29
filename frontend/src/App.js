@@ -16,7 +16,6 @@ import LivePage from "./pages/LivePage";
 import VideosPage from "./pages/VideosPage";
 import SubscriptionPage from "./pages/SubscriptionPage";
 import CommunityPage from "./pages/CommunityPage";
-import ScreenProtection from "./components/ScreenProtection";
 
 if (typeof document !== "undefined") {
   document.title = "Mateus Buarque";
@@ -75,7 +74,6 @@ function App() {
     <AuthProvider>
       <SiteSettingsProvider>
         <BrowserRouter>
-          <ScreenProtection />
           <div className="min-h-screen flex flex-col">
             <Header />
             <main className="flex-1">
