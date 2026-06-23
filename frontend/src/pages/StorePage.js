@@ -1,47 +1,31 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { productAPI, checkoutAPI } from "../lib/api";
+import { Link } from "react-router-dom";
+import { productAPI } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
-import { useSiteSettings } from "../contexts/SiteSettingsContext";
-import { ShoppingBag, QrCode, Copy, Check, Mail } from "lucide-react";
-import CouponInput from "../components/CouponInput";
+import { ShoppingBag } from "lucide-react";
+import PaymentButton from "../components/PaymentButton";
 
 export default function StorePage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [checkoutLoading, setCheckoutLoading] = useState(null);
-  const [pixModal, setPixModal] = useState(null);
-  const [copied, setCopied] = useState(false);
   const { user } = useAuth();
-  const { settings } = useSiteSettings();
-  const navigate = useNavigate();
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
   useEffect(() => {
-    productAPI.getAll()
+    productAPI
+      .getAll()
       .then((res) => setProducts(res.data.filter((p) => p.is_active)))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
-  const handleBuyPix = async (product) => {
-    if (!user) { navigate("/login"); return; }
-    setCheckoutLoading(product.id);
-    try {
-      const res = await checkoutAPI.product({ product_id: product.id, quantity: 1, coupon_code: appliedCoupon?.code || null });
-      setPixModal(res.data);
-    } catch (err) { alert(err.response?.data?.detail || "Erro"); }
-    finally { setCheckoutLoading(null); }
-  };
-
-  const copyPixKey = () => {
-    navigator.clipboard.writeText(pixModal?.pix_key || "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="font-['Outfit'] font-black text-2xl uppercase animate-pulse">Carregando...</div></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="font-['Outfit'] font-black text-2xl uppercase animate-pulse">
+          Carregando...
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -51,117 +35,94 @@ export default function StorePage() {
           <div className="w-14 h-14 bg-[#FFDE00] border-2 border-zinc-950 flex items-center justify-center">
             <ShoppingBag size={24} className="text-zinc-950" />
           </div>
+
           <div>
-            <h1 className="font-['Outfit'] text-3xl md:text-5xl font-black uppercase tracking-tighter text-zinc-950">Loja</h1>
-            <p className="text-zinc-500 text-sm font-bold uppercase">Compra direta de produtos</p>
+            <h1 className="font-['Outfit'] text-3xl md:text-5xl font-black uppercase tracking-tighter text-zinc-950">
+              Loja
+            </h1>
+            <p className="text-zinc-500 text-sm font-bold uppercase">
+              Compra direta de produtos
+            </p>
           </div>
         </div>
 
         {products.length > 0 ? (
-          <div>
-            {user && <div className="mb-6 max-w-md"><CouponInput appliedCoupon={appliedCoupon} onApply={setAppliedCoupon} onRemove={() => setAppliedCoupon(null)} /></div>}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {products.map((product, i) => (
-              <div key={product.id} className="brutalist-card overflow-hidden" data-testid={`product-card-${i}`}>
+              <div
+                key={product.id}
+                className="brutalist-card overflow-hidden"
+                data-testid={`product-card-${i}`}
+              >
                 <div className="border-b-2 border-zinc-950 overflow-hidden">
-                  <img src={product.image_url} alt={product.title} className="w-full h-64 object-cover hover:scale-105 transition-transform duration-300" />
+                  <img
+                    src={product.image_url}
+                    alt={product.title}
+                    className="w-full h-64 object-cover hover:scale-105 transition-transform duration-300"
+                  />
                 </div>
+
                 <div className="p-6">
-                  <h3 className="font-['Outfit'] font-bold text-xl mb-2 text-zinc-950">{product.title}</h3>
-                  <p className="text-sm text-zinc-600 mb-4 line-clamp-2">{product.description}</p>
+                  <h3 className="font-['Outfit'] font-bold text-xl mb-2 text-zinc-950">
+                    {product.title}
+                  </h3>
+
+                  <p className="text-sm text-zinc-600 mb-4 line-clamp-2">
+                    {product.description}
+                  </p>
+
                   <div className="flex items-center justify-between mb-4">
                     <span className="font-['Outfit'] font-black text-2xl text-zinc-950">
-                      R$ {parseFloat(product.price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      R$ {parseFloat(product.price).toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                      })}
                     </span>
+
                     {product.stock <= 10 && product.stock > 0 && (
-                      <span className="text-xs font-bold text-red-600 uppercase">Ultimas {product.stock}</span>
+                      <span className="text-xs font-bold text-red-600 uppercase">
+                        Últimas {product.stock}
+                      </span>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleBuyPix(product)}
-                    disabled={!!checkoutLoading || product.stock <= 0}
-                    className="brutalist-btn w-full flex items-center justify-center gap-2 text-sm"
-                    data-testid={`buy-pix-${i}`}
-                  >
-                    <QrCode size={16} />
-                    {checkoutLoading === product.id ? "Gerando..." : product.stock <= 0 ? "Esgotado" : (settings.btn_label_buy_pix || "Pagar com Pix")}
-                  </button>
+
+                  {product.stock <= 0 ? (
+                    <button
+                      disabled
+                      className="brutalist-btn w-full opacity-50 cursor-not-allowed"
+                    >
+                      Esgotado
+                    </button>
+                  ) : (
+                    <PaymentButton
+                      title={product.title}
+                      price={Number(product.price)}
+                    />
+                  )}
+
                   {!user && (
                     <p className="text-xs text-zinc-400 text-center mt-2">
-                      <Link to="/login" className="underline hover:text-zinc-700">Faca login</Link> para comprar
+                      <Link to="/login" className="underline hover:text-zinc-700">
+                        Faça login
+                      </Link>{" "}
+                      para acompanhar sua compra depois.
                     </p>
                   )}
                 </div>
               </div>
             ))}
           </div>
-          </div>
         ) : (
           <div className="brutalist-card p-12 text-center">
             <ShoppingBag size={48} className="mx-auto mb-4 text-zinc-300" />
-            <p className="font-['Outfit'] font-bold text-xl text-zinc-500 uppercase">Nenhum produto disponivel</p>
-            <Link to="/" className="brutalist-btn inline-block mt-6">Ver Campanhas</Link>
+            <p className="font-['Outfit'] font-bold text-xl text-zinc-500 uppercase">
+              Nenhum produto disponível
+            </p>
+            <Link to="/" className="brutalist-btn inline-block mt-6">
+              Ver Campanhas
+            </Link>
           </div>
         )}
       </div>
-
-      {/* Pix Modal */}
-      {pixModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-testid="pix-modal">
-          <div className="brutalist-card bg-white w-full max-w-md p-6 md:p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-['Outfit'] font-black text-xl uppercase">Pagar com Pix</h2>
-              <button onClick={() => setPixModal(null)} className="p-2 hover:bg-zinc-100" data-testid="pix-modal-close"><span className="text-xl">&times;</span></button>
-            </div>
-            <div className="text-center mb-6">
-              <div className="w-20 h-20 bg-[#FFDE00] border-2 border-zinc-950 mx-auto flex items-center justify-center mb-4">
-                <QrCode size={40} className="text-zinc-950" />
-              </div>
-              <p className="font-['Outfit'] font-black text-3xl text-zinc-950">R$ {(pixModal.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
-              {pixModal.discount > 0 && (
-                <div className="mt-1">
-                  <span className="text-sm text-zinc-400 line-through">R$ {(pixModal.original_amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                  <span className="text-sm text-green-600 font-bold ml-2">-R$ {(pixModal.discount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                  {pixModal.coupon_code && <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold border border-green-300">{pixModal.coupon_code}</span>}
-                </div>
-              )}
-              <p className="text-sm text-zinc-500 mt-1">{pixModal.item_title}</p>
-            </div>
-            <div className="bg-zinc-50 border-2 border-zinc-950 p-4 mb-4">
-              <p className="text-xs font-bold uppercase text-zinc-500 mb-2">Chave Pix ({pixModal.pix_key_type})</p>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-zinc-950 text-lg flex-1 break-all">{pixModal.pix_key}</span>
-                <button onClick={copyPixKey} className="p-2 border-2 border-zinc-950 hover:bg-zinc-100 flex-shrink-0" data-testid="copy-pix-key-btn">
-                  {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
-                </button>
-              </div>
-            </div>
-            {copied && <p className="text-green-600 text-sm font-bold text-center mb-4">Chave copiada!</p>}
-            <div className="bg-[#FFDE00] border-2 border-zinc-950 p-4 mb-4">
-              <ol className="space-y-2 text-sm font-bold text-zinc-950">
-                <li>1. Abra o app do seu banco</li>
-                <li>2. Escolha pagar com Pix</li>
-                <li>3. Cole a chave acima</li>
-                <li>4. Envie R$ {(pixModal.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</li>
-              </ol>
-            </div>
-            <div className="bg-red-50 border-2 border-red-400 p-4 mb-4">
-              <div className="flex items-start gap-3">
-                <Mail size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-bold text-red-800 mb-1">Envie o comprovante por e-mail:</p>
-                  <p className="text-sm text-red-700 font-bold break-all" data-testid="comprovante-email">{pixModal.comprovante_email || "mateuabuarquepugli@gmail.com"}</p>
-                  <p className="text-xs text-red-600 mt-2">Seu pedido sera confirmado manualmente apos analise do comprovante.</p>
-                </div>
-              </div>
-            </div>
-            <p className="text-xs text-zinc-500 text-center mb-4 font-bold">
-              Status do pedido: Aguardando confirmacao de pagamento
-            </p>
-            <button onClick={() => { setPixModal(null); navigate("/meus-pedidos"); }} className="brutalist-btn w-full text-sm" data-testid="pix-done-btn">Ja fiz o Pix e enviei o comprovante</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
