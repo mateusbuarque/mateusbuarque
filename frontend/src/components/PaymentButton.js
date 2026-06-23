@@ -1,37 +1,27 @@
 import { useState } from "react";
 
-export default function PaymentButton({
-  title = "Ingresso Mateus Buarque",
-  price = 25,
-  quantity = 1,
-}) {
+export default function PaymentButton({ title = "Produto Mateus Buarque", price = 25 }) {
   const [loading, setLoading] = useState(false);
 
-  async function handlePayment() {
+  async function pagar() {
     setLoading(true);
 
     try {
-      const response = await fetch("/.netlify/functions/create-payment", {
+      const res = await fetch("/.netlify/functions/create-payment", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title,
-          price,
-          quantity,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, price, quantity: 1 }),
       });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (!response.ok) {
+      if (!res.ok) {
         alert(data.error || "Erro ao criar pagamento.");
         return;
       }
 
       window.location.href = data.init_point;
-    } catch (error) {
+    } catch (err) {
       alert("Erro ao iniciar pagamento.");
     } finally {
       setLoading(false);
@@ -39,8 +29,8 @@ export default function PaymentButton({
   }
 
   return (
-    <button onClick={handlePayment} disabled={loading} className="brutalist-btn">
-      {loading ? "Carregando..." : "Comprar com Pix ou Cartão"}
+    <button onClick={pagar} disabled={loading} className="brutalist-btn">
+      {loading ? "Abrindo pagamento..." : "Comprar com Pix ou Cartão"}
     </button>
   );
 }
