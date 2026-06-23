@@ -284,7 +284,8 @@ export default function Home() {
           <p className="text-zinc-800 mb-8 text-base md:text-lg">Cadastre-se na newsletter e fique por dentro das novidades.</p>
 
         <div className="mb-8">
-  <PaymentButton title="Ingresso Mateus Buarque" price={25} />
+  <PaymentButton title="COMPRAR" price={25} />
+
 </div>
         
           <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-4 max-w-xl">
