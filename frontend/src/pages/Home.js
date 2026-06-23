@@ -275,17 +275,6 @@ export default function Home() {
 </div>
       </section>
 
-      {/* PAGAMENTO */}
-      <section className="py-16 md:py-24" data-testid="payment-section">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-6">
-            Comprar ingresso
-          </h2>
-
-          <PaymentButton title="Ingresso Mateus Buarque" price={25} />
-        </div>
-      </section>
-
       {/* NEWSLETTER */}
       <section className="bg-[var(--site-stats-icon-bg,#FFDE00)] py-24 md:py-32 border-y-2 border-zinc-950" data-testid="newsletter-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -293,6 +282,11 @@ export default function Home() {
             Receba piadas (e spam de livros) no seu email.
           </h2>
           <p className="text-zinc-800 mb-8 text-base md:text-lg">Cadastre-se na newsletter e fique por dentro das novidades.</p>
+
+        <div className="mb-8">
+  <PaymentButton title="Ingresso Mateus Buarque" price={25} />
+</div>
+        
           <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-4 max-w-xl">
             <input
               type="email"
