@@ -41,75 +41,77 @@ export default function StorePage() {
               Loja
             </h1>
             <p className="text-zinc-500 text-sm font-bold uppercase">
-              Compra direta de produtos
+              Compra automática via Mercado Pago
             </p>
           </div>
         </div>
 
         {products.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {products.map((product, i) => (
-              <div
-                key={product.id}
-                className="brutalist-card overflow-hidden"
-                data-testid={`product-card-${i}`}
-              >
-                <div className="border-b-2 border-zinc-950 overflow-hidden">
-                  <img
-                    src={product.image_url}
-                    alt={product.title}
-                    className="w-full h-64 object-cover hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
+            {products.map((product, i) => {
+              const price = Number(product.price || 0);
 
-                <div className="p-6">
-                  <h3 className="font-['Outfit'] font-bold text-xl mb-2 text-zinc-950">
-                    {product.title}
-                  </h3>
-
-                  <p className="text-sm text-zinc-600 mb-4 line-clamp-2">
-                    {product.description}
-                  </p>
-
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="font-['Outfit'] font-black text-2xl text-zinc-950">
-                      R$ {parseFloat(product.price).toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </span>
-
-                    {product.stock <= 10 && product.stock > 0 && (
-                      <span className="text-xs font-bold text-red-600 uppercase">
-                        Últimas {product.stock}
-                      </span>
-                    )}
+              return (
+                <div
+                  key={product.id}
+                  className="brutalist-card overflow-hidden"
+                  data-testid={`product-card-${i}`}
+                >
+                  <div className="border-b-2 border-zinc-950 overflow-hidden">
+                    <img
+                      src={product.image_url}
+                      alt={product.title}
+                      className="w-full h-64 object-cover hover:scale-105 transition-transform duration-300"
+                    />
                   </div>
 
-                  {product.stock <= 0 ? (
-                    <button
-                      disabled
-                      className="brutalist-btn w-full opacity-50 cursor-not-allowed"
-                    >
-                      Esgotado
-                    </button>
-                  ) : (
-                    <PaymentButton
-                      title={product.title}
-                      price={Number(product.price)}
-                    />
-                  )}
+                  <div className="p-6">
+                    <h3 className="font-['Outfit'] font-bold text-xl mb-2 text-zinc-950">
+                      {product.title}
+                    </h3>
 
-                  {!user && (
-                    <p className="text-xs text-zinc-400 text-center mt-2">
-                      <Link to="/login" className="underline hover:text-zinc-700">
-                        Faça login
-                      </Link>{" "}
-                      para acompanhar sua compra depois.
+                    <p className="text-sm text-zinc-600 mb-4 line-clamp-2">
+                      {product.description}
                     </p>
-                  )}
+
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="font-['Outfit'] font-black text-2xl text-zinc-950">
+                        R$ {price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      </span>
+
+                      {product.stock <= 10 && product.stock > 0 && (
+                        <span className="text-xs font-bold text-red-600 uppercase">
+                          Últimas {product.stock}
+                        </span>
+                      )}
+                    </div>
+
+                    {product.stock <= 0 ? (
+                      <button
+                        disabled
+                        className="brutalist-btn w-full opacity-50 cursor-not-allowed"
+                      >
+                        Esgotado
+                      </button>
+                    ) : (
+                      <PaymentButton
+                        title={product.title}
+                        price={price}
+                      />
+                    )}
+
+                    {!user && (
+                      <p className="text-xs text-zinc-400 text-center mt-2">
+                        <Link to="/login" className="underline hover:text-zinc-700">
+                          Faça login
+                        </Link>{" "}
+                        para acompanhar sua compra depois.
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="brutalist-card p-12 text-center">
