@@ -1,3 +1,4 @@
+import PaymentButton from "../components/PaymentButton";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import CampaignCard from "../components/CampaignCard";
@@ -268,6 +269,20 @@ export default function Home() {
               <p className="text-zinc-500 font-bold uppercase">Galeria em breve</p>
             </div>
           )}
+        </div>
+      </section>
+
+</div>
+      </section>
+
+      {/* PAGAMENTO */}
+      <section className="py-16 md:py-24" data-testid="payment-section">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="font-['Outfit'] text-3xl md:text-5xl font-extrabold uppercase tracking-tighter mb-6">
+            Comprar ingresso
+          </h2>
+
+          <PaymentButton title="Ingresso Mateus Buarque" price={25} />
         </div>
       </section>
 
