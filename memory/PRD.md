@@ -1,7 +1,7 @@
-# PRD — Site Edegar Agostinho (Financiamento Coletivo + Loja)
+# PRD — Site Mateus Buarque (Financiamento Coletivo + Loja)
 
 ## Problema Original
-Criar um site profissional para o comediante Edegar Agostinho vender seus livros, com financiamento coletivo (apenas o admin pode postar), inspirado no fabricadohumor.com.br.
+Criar um site profissional para o comediante Mateus Buarque vender seus livros, com financiamento coletivo (apenas o admin pode postar), inspirado no fabricadohumor.com.br.
 
 ## Stack Tecnica
 - **Frontend**: React, Tailwind CSS (Neo-Brutalist), React Router
